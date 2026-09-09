@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "NB_dbt_Runner_Spark",
+    "description": "Runs the Jaffle Shop dbt project from GitHub against LH_Jaffle_Shop inside this notebook's own Spark session (dbt-fabricspark method: session). PySpark notebook, Lakehouse only."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "b2e7d4c9-3f1a-4e8b-9a6d-2c5f8e1b7d03"
+  }
+}

@@ -12,14 +12,16 @@ The workspace `ad51bc60-66e8-45ac-9939-c54f343f54ce` is Git-connected to this re
 | `WH_Jaffle_Shop` | Warehouse | target `warehouse` / `ci`, Demos 1-3 |
 | `LH_Jaffle_Shop` | Lakehouse (schema-enabled) | target `lakehouse`, Demo 4 |
 | `DB_Jaffle_Shop` | SQL database | target `sqldb`, Demo 5 |
-| `NB_dbt_Runner` | Python notebook | "run dbt from a notebook" host |
+| `NB_dbt_Runner` | Python notebook | "run dbt from a notebook" host, all three targets over Livy / SQL |
+| `NB_dbt_Runner_Spark` | PySpark notebook | Lakehouse only, dbt-fabricspark `method: session` in the notebook's own Spark session |
 | `DBT_Jaffle_Shop_WH` / `_LH` / `_DB` | dbt job (GitHub-sourced) | "run dbt as a Fabric job" host |
 
 Collect the connection values for `tools/env.ps1`:
 
 - **Warehouse host**: Warehouse -> Settings -> *SQL connection string*.
 - **Lakehouse id**: the GUID after `/lakehouses/` in the Lakehouse URL, or
-  `fab get "/<workspace name>.Workspace/LH_Jaffle_Shop.Lakehouse" -q id`.
+  `fab get "/External Demos - dbt.Workspace/LH_Jaffle_Shop.Lakehouse" -q id` (the workspace display
+  name; keep every `fab` path inside this workspace).
 - **SQL database host and name**: SQL database -> Settings -> *Connection strings*. The database name has
   the form `DB_Jaffle_Shop-<item id>`.
 
@@ -43,6 +45,17 @@ offers Basic or service-principal authentication).
 The profile uses `authentication: environment`, so the pipeline passes the three values as
 `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`.
 
+Two things learned the hard way:
+
+- **Lakehouse target**: dbt-fabricspark talks to the Fabric REST API (Livy). A service principal gets
+  `403 Forbidden` on `.../livyapi/...` until the tenant setting **Service principals can use Fabric APIs**
+  includes it (a Contributor role alone is not enough). Interactive users need `az login` and
+  `DBT_SPARK_AUTH=CLI` instead.
+- **SQL database target**: a workspace-role identity (user or service principal) is not a database user, so
+  `CREATE SCHEMA [raw]` fails with "Principal ... could not be resolved. Server identity is not configured".
+  The `sqldb` output therefore sets `schema_authorization: dbo`, which makes dbt-sqlserver run
+  `CREATE SCHEMA [raw] AUTHORIZATION [dbo]`.
+
 ## 4. Azure DevOps
 
 1. Create a project and a pipeline from **GitHub** -> this repository -> existing YAML file
@@ -62,6 +75,16 @@ The profile uses `authentication: environment`, so the pipeline passes the three
    publishes `target/` as an artifact and drops the schema.
 
 Microsoft-hosted agents can reach Fabric, so no self-hosted agent is needed.
+
+You can rehearse the pipeline steps from a laptop before Azure DevOps exists (verified 2026-09-09: 48/48 in 35 s,
+schema dropped afterwards):
+
+```powershell
+. .\tools\env.ps1; $env:BUILD_BUILDID = 'local'      # AZURE_* values set, DBT_AUTH not needed for ci
+cd jaffle_shop
+dbt build --target ci                                 # builds into WH_Jaffle_Shop.ci_local
+dbt run-operation drop_schema_if_exists --args "{schema_name: ci_local}" --target ci
+```
 
 ## 5. Fabric dbt jobs from the GitHub repository
 
@@ -101,14 +124,37 @@ pipeline can branch on.
 Authentication is the notebook identity: `notebookutils` for the Warehouse, `fabric_notebook` for
 the Lakehouse, and an access token from `notebookutils.credentials.getToken` for the SQL database.
 
+### 6b. Spark runner notebook (Lakehouse only)
+
+`workspace/NB_dbt_Runner_Spark.Notebook` is a **PySpark** notebook that uses the `lakehouse_session`
+output of `profiles.yml` (dbt-fabricspark `method: session`). Instead of opening a Livy session over the
+REST API, dbt calls `SparkSession.builder.getOrCreate()` and gets the notebook's own session, so every
+statement runs as `spark.sql(...)` on the driver: no session start, no HTTP round trips, no credentials
+and no ids in the profile.
+
+- Attach `LH_Jaffle_Shop` as the **default lakehouse**; the notebook refuses to run otherwise. With no
+  REST API available the adapter infers "schema-enabled" from `schema != lakehouse` and resolves
+  three-part names (`LH_Jaffle_Shop.jaffle_shop.customers`) against the session's default catalog.
+- Parameters: `command`, `select`, `schema`, `threads` (default 4, passed as `--threads`),
+  `load_source_data`, repo coordinates. It exits with the same JSON shape as `NB_dbt_Runner` plus
+  `elapsed_seconds`, so a pipeline can compare the two.
+- The install cell pulls `requirements/lakehouse.in` (dbt-core 1.11 + dbt-fabricspark 1.13.4) rather
+  than the lock file, so pip resolves against the Spark runtime's preinstalled packages instead of
+  fighting them. PySpark is not installed; the runtime provides it.
+- The `lakehouse_session` output requires PySpark at profile-parse time, so it is unusable from the
+  laptop venvs by design. Keep using `--target lakehouse` (Livy) there and for speed comparisons.
+
 ## 7. Laptop
 
 ```powershell
-winget install astral-sh.uv Microsoft.AzureCLI      # once
+winget install astral-sh.uv Microsoft.AzureCLI      # once; open a new terminal afterwards so az is on PATH
 .\tools\setup-env.ps1                               # three pinned venvs
 Copy-Item tools\env.example.ps1 tools\env.ps1        # then fill in the values
 az login
 ```
+
+Without `az login` you can still run everything as the service principal: set `DBT_AUTH=environment`
+and `DBT_SPARK_AUTH=SPN` in `tools/env.ps1` next to the `AZURE_*` values.
 
 Behind a TLS-inspecting corporate proxy, Python needs the corporate root CA: export the Windows
 root store to a PEM (append it to `certifi`'s bundle) and set `REQUESTS_CA_BUNDLE` to that file

@@ -13,6 +13,7 @@ engines from four different hosts.
 | Azure DevOps pipeline   | `--target ci`    |                  |                     |
 | Fabric dbt job          | `DBT_Jaffle_Shop_WH` | `DBT_Jaffle_Shop_LH` | `DBT_Jaffle_Shop_DB` |
 | Fabric notebook         | `NB_dbt_Runner` with `target = "warehouse"` | `"lakehouse"` | `"sqldb"` |
+| Fabric Spark notebook   |                  | `NB_dbt_Runner_Spark` (`method: session`, target `lakehouse_session`) | |
 
 ## What is where
 
@@ -22,7 +23,7 @@ engines from four different hosts.
 | `requirements/` | pinned Python requirements, one file per adapter |
 | `tools/` | `setup-env.ps1` (venvs), `env.example.ps1` (variables), `scenario.ps1` (Demo 2 break/reset) |
 | `azure-pipelines.yml` | CI: build and test every pull request in an isolated Warehouse schema |
-| `workspace/` | Fabric workspace items synced through Git integration (Warehouse, Lakehouse, SQL database, dbt jobs, runner notebook) |
+| `workspace/` | Fabric workspace items synced through Git integration (Warehouse, Lakehouse, SQL database, dbt jobs, two runner notebooks) |
 | `docs/runbook.md` | the demo script: commands, expected output, recovery |
 | `docs/fabric-setup.md` | one-time setup: tenant settings, service principal, Azure DevOps, dbt jobs, notebook |
 | `sql-as-software-getting-started-with-dbt.pptx` | the deck |
@@ -57,6 +58,10 @@ The model files do not change.
 - Written in a portable SQL subset so the same files run on T-SQL and Spark SQL: explicit `group by`
   columns, and two dispatch macros (`to_bool`, `is_true`) for boolean columns next to the upstream
   `cents_to_dollars`.
+- `macros/tsql_overrides.sql` fixes two adapter gaps found on Fabric: `dbt_utils.expression_is_true`
+  needs a named column inside the T-SQL test wrapper, and the adapters' `date_trunc` rounds
+  `23:59:59.9999` into the next day. Unit-test boolean fixtures are quoted (`"true"`) because T-SQL has
+  no boolean literal.
 - Seeds are gated by `var('load_source_data')` and land in a `raw` schema; models read them through
   `source('ecom', ...)`, the way a real project reads tables that ingestion owns.
 - The semantic-layer YAML (semantic models, metrics, saved queries) and the time spine are removed:

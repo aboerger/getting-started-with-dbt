@@ -1,7 +1,7 @@
 # Demo runbook
 
 Five demos, one project, three engines. Times match the speaker notes in the deck.
-Expected numbers were computed from the seed data and must match every engine.
+Expected numbers were computed from the seed data and confirmed live on the Warehouse and the SQL database (2026-09-09).
 
 | Metric | Expected |
 | --- | --- |
@@ -24,12 +24,16 @@ Expected numbers were computed from the seed data and must match every engine.
    .\..\.venv-sqldb\Scripts\Activate.ps1;     dbt seed --vars '{"load_source_data": true}' --target sqldb
    ```
 
-   Seeds go through batched INSERT statements (400 rows per statement on T-SQL), so expect tens of minutes on the
-   Warehouse and the Lakehouse; record the actual duration here once measured.
-3. `dbt build` green on all three targets (`--target warehouse`, `lakehouse`, `sqldb`).
+   Seeds go through batched INSERT statements (up to 400 rows per statement on T-SQL, 500 on Spark). Measured on
+   2026-09-09: Warehouse 3 min 29 s, SQL database 1 min 53 s. On the Lakehouse each Spark statement takes ~8 s, so a
+   full seed is ~45 min - instead, upload the six CSVs to the Lakehouse Files area and use *Load to table* into the
+   `raw` schema (same table and column names; `ordered_at`/`opened_at` as timestamp, `perishable` as boolean). That
+   is what was done for the rehearsal and it is the more realistic "ingestion owns the raw tables" story anyway.
+3. `dbt build` green on all three targets (`--target warehouse`, `lakehouse`, `sqldb`). Measured: Warehouse ~30 s,
+   SQL database ~40 s, Lakehouse 10 min 28 s on one thread (see Demo 4 for the multi-thread timing).
 4. `dbt docs generate` then `dbt docs serve --port 8080` in a spare terminal; leave the browser tab open on `customers`.
 5. `tools\scenario.ps1 status` says intact; `git status` clean.
-6. Warm the Spark session: `dbt run --select stg_products --target lakehouse` ten minutes before Demo 4.
+6. Warm the Spark session: `dbt run --select stg_products --target lakehouse` ten minutes before Demo 4 (a cold Livy session takes ~70 s to start; `reuse_session: true` keeps it).
 7. Fallback recordings of Demo 4 (Spark) and Demo 5 ready to play.
 8. Terminal font large; `.venv-warehouse` active; working directory `jaffle_shop`.
 
@@ -41,7 +45,7 @@ dbt build
 code target\compiled\jaffle_shop\models\marts\customers.sql
 ```
 
-Expected console tail: `Done. PASS=48 WARN=0 ERROR=0 SKIP=0 TOTAL=48` (seeds are not part of the build).
+Expected console tail: `Done. PASS=48 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=48` in about 30 seconds (seeds are not part of the build).
 
 Query in the Warehouse (or `dbt show --inline`):
 
@@ -71,9 +75,10 @@ dbt build --select stg_orders+
 $LASTEXITCODE                        # 1
 ```
 
-Expected: `PASS view stg_orders`, `FAIL 61948 dbt_utils_expression_is_true_stg_orders_order_total_tax_paid_subtotal`,
+Expected: `PASS view stg_orders`, `FAIL 61465 dbt_utils_expression_is_true_stg_orders_order_total_tax_paid_subtotal`
+(483 orders carry no tax, so they still reconcile),
 `SKIP` for `order_items`, `orders`, `customers`, their tests and the two unit tests. Summary
-`Done. PASS=4 WARN=0 ERROR=1 SKIP=17 TOTAL=22`.
+`Done. PASS=4 WARN=0 ERROR=1 SKIP=17 NO-OP=0 TOTAL=22`, exit code 1. Rehearsed 2026-09-09: 7 s broken run, 34 s repaired run.
 
 Show: `target\compiled\jaffle_shop\models\staging\stg_orders.yml\dbt_utils_expression_is_true_...sql` and
 `target\run_results.json`. Prove the old `customers` table still answers the Demo 1 query.
@@ -107,18 +112,30 @@ the static lineage view in the Fabric dbt job item.
 
 ```powershell
 ..\.venv-lakehouse\Scripts\Activate.ps1
-dbt build --target lakehouse
+dbt build --select customers --target lakehouse     # one mart + 4 tests on Spark: ~2 min (measured 1 min 57 s)
 ```
 
-Same files, `--target lakehouse`. Open `target\compiled\jaffle_shop\models\marts\customers.sql` and compare with the
-Warehouse version (relation names, `coalesce(... , false)` instead of `cast(... as bit)`). Query in a notebook or the
-SQL analytics endpoint:
+Do **not** run the full project live: with `threads: 4` over Livy it takes 7 min 28 s (10 min 28 s on one
+thread) because every Spark statement costs ~20 s. Run the full `dbt build --target lakehouse` before the talk so
+the rest of the schema exists, and use that run as the recording. `stg_orders+` alone is ~7 min - also too long.
+
+Same files, `--target lakehouse`. Open `target\compiled\jaffle_shop\models\marts\customers.sql` and
+`models\staging\stg_orders.sql` and compare with the Warehouse version. Exactly four kinds of line differ:
+
+| Lakehouse (Spark SQL) | Warehouse (T-SQL) | why |
+| --- | --- | --- |
+| `` `LH_Jaffle_Shop`.`jaffle_shop`.orders `` | `[WH_Jaffle_Shop].[jaffle_shop].[orders]` | relation names and quoting |
+| `coalesce(count(distinct ...) > 1, false)` | `cast(case when ... then 1 else 0 end as bit)` | `to_bool` macro |
+| `when is_repeat_buyer then` | `when is_repeat_buyer = 1 then` | `is_true` macro |
+| `cast(x / 100.0 as decimal(16, 2))`, `date_trunc('day', ...)` | `numeric(16, 2)`, `cast(... as date)` | `cents_to_dollars`, `date_trunc` |
+
+Query in a notebook or the SQL analytics endpoint:
 
 ```sql
 select customer_type, count(*), sum(lifetime_spend) from LH_Jaffle_Shop.jaffle_shop.customers group by customer_type
 ```
 
-Same numbers as Demo 1.
+Same numbers as Demo 1 (confirmed 2026-09-09: 6 / 113.48, 929 / 671,311.89; 61,948 orders; 671,425.37).
 
 Recovery: if the Livy session takes more than 20 seconds to start, play the recording and keep talking about the
 compiled SQL diff. `reuse_session: true` keeps the session between commands, so the warm-up run before the talk matters.
@@ -141,6 +158,10 @@ rehearsal, but the adapter is not certified for it.
 - **Fabric dbt job**: open `DBT_Jaffle_Shop_WH`, show the GitHub source, the Output tab of the last run and the
   Lineage view.
 - **Fabric notebook**: open `NB_dbt_Runner`, show the parameters cell and the exit value of the last run.
+- **Fabric Spark notebook**: open `NB_dbt_Runner_Spark`, the Lakehouse-only variant. Point at the
+  `lakehouse_session` output in `profiles.yml` (`method: session`, no ids, no credentials) and say that dbt is
+  calling `spark.sql()` in the notebook's own session instead of going through Livy. Compare `elapsed_seconds`
+  in its exit value with the Livy runner's timing if you have both.
 
 ## After the talk
 

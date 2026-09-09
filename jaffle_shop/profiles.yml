@@ -5,6 +5,7 @@
 #   dbt build --target lakehouse   -> Fabric Lakehouse    (dbt-fabricspark, Livy)
 #   dbt build --target sqldb       -> Fabric SQL database (dbt-sqlserver)
 #   dbt build --target ci          -> Warehouse, isolated schema per pipeline run, service principal
+#   dbt build --target lakehouse_session -> Fabric Lakehouse from inside a Fabric PySpark notebook (no Livy)
 #
 # Interactive auth on a laptop: `az login`, then the default authentication (CLI) works for all three.
 # Automation: DBT_AUTH=environment (Warehouse, SQL DB) / DBT_SPARK_AUTH=SPN (Lakehouse) plus the
@@ -43,7 +44,22 @@ jaffle_shop:
       reuse_session: true
       connect_retries: 3
       connect_timeout: 30
-      threads: 1
+      # Livy high-concurrency sessions run statements in parallel: 4 threads cut a full build from 10.5 to 7.5 min.
+      threads: 4
+
+    lakehouse_session:
+      # Same lakehouse, no Livy: dbt-fabricspark attaches to the Spark session of the notebook it runs in
+      # (SparkSession.builder.getOrCreate()), so there is no endpoint, workspace/lakehouse id or credential.
+      # Only usable where PySpark already exists, i.e. the NB_dbt_Runner_Spark notebook; the laptop keeps `lakehouse`.
+      # The adapter cannot reach the Fabric REST API here, so `schema != lakehouse` is what tells it the
+      # lakehouse is schema-enabled and relations need three-part names (LH_Jaffle_Shop.jaffle_shop.x).
+      type: fabricspark
+      method: session
+      lakehouse: "{{ env_var('DBT_LAKEHOUSE_NAME', 'LH_Jaffle_Shop') }}"
+      schema: "{{ env_var('DBT_SCHEMA', 'jaffle_shop') }}"
+      spark_config:
+        name: dbt-jaffle-shop-session
+      threads: 4
 
     sqldb:
       type: sqlserver
@@ -53,6 +69,9 @@ jaffle_shop:
       database: "{{ env_var('DBT_SQLDB_NAME') }}"
       schema: "{{ env_var('DBT_SCHEMA', 'jaffle_shop') }}"
       authentication: "{{ env_var('DBT_AUTH', 'CLI') }}"
+      # Fabric SQL database: workspace-role identities are not database users, so schemas
+      # must be created with an explicit owner (CREATE SCHEMA ... AUTHORIZATION [dbo]).
+      schema_authorization: dbo
       encrypt: true
       trust_cert: false
       threads: 4

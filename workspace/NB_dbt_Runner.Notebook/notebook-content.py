@@ -64,6 +64,18 @@
 # #### Parameters
 # Strings everywhere so the same values work from a pipeline (typed parameters) and from this cell
 # (Python literals are accepted too). Only the connection values of the chosen `target` are used.
+# # Run dbt from a Fabric notebook
+# One small Python notebook that runs the **same** Jaffle Shop project the laptop and the
+# Azure DevOps pipeline run, against any of the three Fabric targets. The dbt process runs
+# on this notebook's single-node Python compute; the SQL still executes in the engine you pick.
+# | `target`    | adapter          | how the notebook authenticates                         |
+# |-------------|------------------|--------------------------------------------------------|
+# | `warehouse` | dbt-fabric       | `authentication: notebookutils` (token from the notebook identity) |
+# | `lakehouse` | dbt-fabricspark  | `authentication: fabric_notebook`, its own Livy Spark session |
+# | `sqldb`     | dbt-sqlserver    | `ActiveDirectoryAccessToken` obtained with `notebookutils.credentials.getToken` |
+# 
+# 
+# The parameters cell below is what a pipeline **Notebook activity** overrides.
 
 # PARAMETERS CELL ********************
 

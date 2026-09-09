@@ -12,7 +12,6 @@
 # MARKDOWN ********************
 
 # # Run dbt inside this notebook's Spark session
-#
 # The Lakehouse-only runner, and the way a production platform runs dbt on Fabric (this is the
 # pattern the AANA Hub's Gold layer runs on). `NB_dbt_Runner` (Python notebook, same bundle pattern)
 # drives dbt-fabricspark over the Livy REST API: a separate Spark session, a ~70 s session start and one
@@ -20,7 +19,6 @@
 # exists when the first cell runs; dbt-fabricspark's `method: session` attaches to it with
 # `SparkSession.builder.getOrCreate()` and every dbt statement becomes a plain `spark.sql(...)` call
 # on the same driver. Three things make it production-grade rather than a demo trick:
-#
 # 1. **Everything arrives in one published bundle.** `tools/publish_dbt_bundle.py` zips the dbt project
 #    (with `dbt_packages/` vendored), a fresh `jaffle-dbt-runner` wheel, and *only those wheels of
 #    dbt-fabricspark's dependency closure that the Fabric runtime does not already ship*, and uploads
@@ -34,7 +32,6 @@
 # 3. **The notebook has no logic.** It bootstraps the bundle and calls `jaffle_dbt_runner.run_project()`;
 #    parameter validation, argv construction, the in-process `dbtRunner` call and the dbt.log /
 #    run_results.json upload live in `runner/`, where `pytest` covers them.
-#
 # | | `NB_dbt_Runner` (`lakehouse`) | `NB_dbt_Runner_Spark` (`lakehouse_session`) |
 # |---|---|---|
 # | notebook kind | Python (3.11 kernel) | PySpark |
@@ -44,13 +41,14 @@
 # | profile needs | workspace id, lakehouse id, endpoint | lakehouse name and schema only |
 # | where the target also runs | laptop, CI, benchmarks | Fabric Spark notebooks only (needs PySpark) |
 #
+# | where it also runs | laptop, CI, benchmarks | Fabric Spark notebooks only (needs PySpark) |
 # The `%%configure` cell binds `LH_Jaffle_Shop` as the default lakehouse **by name**, so the notebook
 # is correct in any workspace that holds a lakehouse of that name. With `method: session` the adapter
 # cannot call the Fabric REST API, so it reads `schema != lakehouse` in the profile as "schema-enabled
 # lakehouse" and renders three-part names such as `LH_Jaffle_Shop.jaffle_shop.customers`.
-#
 # The workspace's Spark runtime must be the one the bundle was built for (Runtime 2.0, Python 3.13 -
 # `deployment.json.wheel_python_version`); the bootstrap says so, with the fix, if it is not.
+
 
 # CELL ********************
 

@@ -12,7 +12,7 @@ engines from four different hosts.
 | laptop                  | Demo 1-3         | Demo 4           | Demo 5              |
 | Azure DevOps pipeline   | `--target ci`    |                  |                     |
 | Fabric dbt job          | `DBT_Jaffle_Shop_WH` | `DBT_Jaffle_Shop_LH` | `DBT_Jaffle_Shop_DB` |
-| Fabric notebook         | `NB_dbt_Runner` with `target = "warehouse"` | `"lakehouse"` | `"sqldb"` |
+| Fabric Python notebook  | `NB_dbt_Runner` with `target = "warehouse"` (code from a published OneLake bundle) | `"lakehouse"` (Livy) | `"sqldb"` |
 | Fabric Spark notebook   |                  | `NB_dbt_Runner_Spark` (`method: session`, target `lakehouse_session`, code from a published OneLake bundle) | |
 
 ## What is where
@@ -21,9 +21,9 @@ engines from four different hosts.
 | --- | --- |
 | `jaffle_shop/` | the dbt project: sources, staging views, marts, tests, unit tests, macros, `profiles.yml` |
 | `requirements/` | pinned Python requirements, one file per adapter, plus `tools.in` for the bundle publisher |
-| `tools/` | `setup-env.ps1` (venvs), `env.example.ps1` (variables), `scenario.ps1` (Demo 2 break/reset); `publish_dbt_bundle.py` and its modules publish the OneLake bundle `NB_dbt_Runner_Spark` runs (see below) |
-| `runner/` | `jaffle-dbt-runner`: the in-notebook runner package the bundle carries; unit-tested, never committed as a wheel |
-| `azure-pipelines.yml` | CI: build and test every pull request in an isolated Warehouse schema; assemble the Lakehouse bundle without uploading |
+| `tools/` | `setup-env.ps1` (venvs), `env.example.ps1` (variables), `scenario.ps1` (Demo 2 break/reset); `publish_dbt_bundle.py` and its modules publish the OneLake bundles the two runner notebooks run (see below) |
+| `runner/` | `jaffle-dbt-runner`: the in-notebook runner package the bundles carry; unit-tested, never committed as a wheel |
+| `azure-pipelines.yml` | CI: build and test every pull request in an isolated Warehouse schema; assemble both Lakehouse bundles without uploading |
 | `workspace/` | Fabric workspace items synced through Git integration (Warehouse, Lakehouse, SQL database, dbt jobs, two runner notebooks) |
 | `docs/runbook.md` | the demo script: commands, expected output, recovery |
 | `docs/fabric-setup.md` | one-time setup: tenant settings, service principal, Azure DevOps, dbt jobs, notebook |
@@ -54,30 +54,41 @@ Switch engine by switching venv and target: `.\.venv-lakehouse\Scripts\Activate.
 `dbt build --target lakehouse`; `.\.venv-sqldb\Scripts\Activate.ps1` then `dbt build --target sqldb`.
 The model files do not change.
 
-## Fabric Spark notebook: dbt from a published OneLake bundle
+## Fabric notebooks: dbt from a published OneLake bundle
 
-`NB_dbt_Runner_Spark` runs dbt **in-process on its own Spark driver** (dbt-fabricspark `method: session`),
-the way a production platform does. Fabric runs *deployed* code, not the repo, so the notebook installs
-everything from one zip in the Lakehouse instead of pulling GitHub and PyPI at run time:
+Both runner notebooks run dbt **in-process on the notebook's kernel**, the way a production platform
+does: Fabric runs *deployed* code, not the repo, so each notebook installs everything from one zip in the
+Lakehouse instead of pulling GitHub and PyPI at run time.
+
+- `NB_dbt_Runner_Spark` (PySpark, Spark Runtime 2.0): dbt-fabricspark `method: session` attaches to the
+  notebook's own Spark session. Bundle `Files/dbt/jaffle_shop.zip`.
+- `NB_dbt_Runner` (Python, 3.11 kernel): all three engines as the notebook identity - dbt-fabric with
+  `authentication: notebookutils`, dbt-fabricspark over Livy with `fabric_notebook`, dbt-sqlserver with a
+  `notebookutils` access token. Bundle `Files/dbt/jaffle_shop_python.zip`.
 
 ```powershell
 .\.venv-tools\Scripts\Activate.ps1                    # created by tools\setup-env.ps1
-python tools\publish_dbt_bundle.py --workspace "<workspace name or GUID>"   # -> LH_Jaffle_Shop Files/dbt/jaffle_shop.zip
+python tools\publish_dbt_bundle.py --runner spark  --workspace "<workspace name or GUID>"   # -> Files/dbt/jaffle_shop.zip
+python tools\publish_dbt_bundle.py --runner python --workspace "<workspace name or GUID>"   # -> Files/dbt/jaffle_shop_python.zip
 python -m pytest                                      # tool + runner unit tests
-python tools\publish_dbt_bundle.py --assemble-only    # what CI does: build the zip, upload nothing
+python tools\publish_dbt_bundle.py --runner python --assemble-only    # what CI does: build the zip, upload nothing
 ```
 
-The same three commands are VS Code tasks (`.vscode/tasks.json`): *Publish Lakehouse bundle* (prompts for the
-workspace), *Assemble Lakehouse bundle (no upload)* and *Tool and runner unit tests*.
+The same commands are VS Code tasks (`.vscode/tasks.json`): *Publish Lakehouse bundle (Spark runner)* /
+*(Python runner)* (prompt for the workspace), *Assemble Lakehouse bundles (no upload)* and *Tool and runner
+unit tests*.
 
-The publisher vendors `dbt_packages/` (`dbt deps`), builds a fresh `runner/` wheel, and resolves
-`requirements/lakehouse.in` against Microsoft's manifest of what Fabric Runtime 2.0 already ships
-(`tools/runtime_constraints/`): wheels the runtime has are pruned, and a requirement that would *replace* a
-runtime package fails the publish unless `CONSTRAINT_OVERRIDES` allow-lists it with a reason (today: `protobuf`,
-`opentelemetry-api`, `pathspec`). The notebook's bootstrap cell installs the result offline in seconds, never with
-`%pip`. `deployment.json` inside the zip records the commit, so a Fabric run can always be matched to the code
-it ran. `NB_dbt_Runner` (Python notebook, all three engines over Livy / SQL) is unchanged and still fetches the
-project from GitHub. `docs/fabric-setup.md` §6b has the details.
+The publisher vendors `dbt_packages/` (`dbt deps`), builds a fresh `runner/` wheel, and resolves the adapter
+pins from `requirements/*.in` against Microsoft's manifest of what the target runtime already ships
+(`tools/runtime_constraints/`: the Runtime 2.0 conda YML, and the Python-notebook image's release note for the
+3.11 kernel). Wheels the runtime has are pruned, and a requirement that would *replace* a runtime package fails
+the publish unless the runner's overrides allow-list it with a reason (Spark: `protobuf`, `opentelemetry-api`,
+`pathspec`; Python: `azure-core`, `azure-identity`, `pyodbc`). The notebooks' bootstrap cell installs the
+result offline in seconds, never with `%pip`; on the Python kernel it also evicts the modules the kernel had
+already imported from the image (notebookutils' azure-core) so dbt gets the bundle's copies - the
+`cannot import name 'AccessTokenInfo'` failure the pip-at-run-time version of the notebook hit.
+`deployment.json` inside the zip records the commit, so a Fabric run can always be matched to the code it
+ran. `docs/fabric-setup.md` §6 has the details.
 
 ## How the project differs from upstream
 

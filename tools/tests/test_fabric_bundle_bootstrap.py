@@ -103,6 +103,66 @@ def test_bootstrap_puts_site_on_sys_path(tmp_path, monkeypatch):
     assert sys.path[0] == str(context.site_dir)
 
 
+def test_evict_shadowed_drops_preloaded_modules_the_bundle_replaces(tmp_path, monkeypatch):
+    """The Python-notebook kernel has already imported the runtime's azure-core when
+    the bootstrap runs; the bundle's copy must win for dbt's later imports."""
+    zip_path = _bundle(tmp_path, _deployment())
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    monkeypatch.delitem(sys.modules, "jaffle_probe", raising=False)
+
+    # a stale copy loaded from somewhere else before the bootstrap
+    stale_dir = tmp_path / "runtime_site" / "jaffle_probe"
+    stale_dir.mkdir(parents=True)
+    (stale_dir / "__init__.py").write_text('VERSION = "runtime-old"\n', encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path / "runtime_site"))
+    import jaffle_probe  # noqa: PLC0415
+
+    assert jaffle_probe.VERSION == "runtime-old"
+
+    context = fbb.bootstrap(zip_path, scratch_root=tmp_path / "scratch", evict_shadowed=True, quiet=True)
+
+    assert "jaffle_probe" not in sys.modules  # evicted
+    import jaffle_probe as fresh  # noqa: PLC0415
+
+    assert fresh.VERSION == "0.1"
+    assert Path(fresh.__file__).parent.parent == context.site_dir
+    # a second pass finds only the bundle's own copy and leaves it alone
+    assert fbb.evict_shadowed_modules(context.site_dir) == []
+    assert sys.modules["jaffle_probe"] is fresh
+    monkeypatch.delitem(sys.modules, "jaffle_probe", raising=False)
+
+
+def test_pruned_package_drift_compares_the_manifest_with_this_kernel(tmp_path, capsys):
+    import pytest as pytest_dist  # noqa: PLC0415 — a distribution certainly installed here
+
+    real = pytest_dist.__version__
+    deployment = _deployment(pruned_runtime_packages=[f"pytest=={real}", "pytest==0.0.1", "no-such-dist-xyz==1.0", "malformed"])
+    drift = fbb.pruned_package_drift(deployment)
+    assert drift == [
+        f"pytest: this kernel has {real}, the bundle was resolved against the runtime's 0.0.1",
+        "no-such-dist-xyz: not installed in this kernel, but the bundle relies on the runtime's 1.0",
+    ]
+    # surfaced by bootstrap as warnings, never as a failure
+    zip_path = _bundle(tmp_path, deployment)
+    fbb.bootstrap(zip_path, scratch_root=tmp_path / "scratch", add_to_sys_path=False)
+    out = capsys.readouterr().out
+    assert "WARNING: pytest: this kernel has" in out and "refresh tools/runtime_constraints" in out
+    assert fbb.pruned_package_drift({}) == []
+
+
+def test_bundled_top_level_names_reads_dist_info_and_falls_back_to_the_tree(tmp_path):
+    site = tmp_path / "site"
+    (site / "azure_core-1.41.0.dist-info").mkdir(parents=True)
+    (site / "azure_core-1.41.0.dist-info" / "top_level.txt").write_text("azure\n", encoding="utf-8")
+    (site / "azure" / "core").mkdir(parents=True)
+    (site / "dbt").mkdir()
+    (site / "six.py").write_text("", encoding="utf-8")
+    (site / "bin").mkdir()
+    (site / "_virtualenv.pth").write_text("", encoding="utf-8")
+    (site / "__pycache__").mkdir()
+    assert fbb.bundled_top_level_names(site) == {"azure", "dbt", "six"}
+
+
 def test_python_version_mismatch_names_the_fix(tmp_path):
     zip_path = _bundle(tmp_path, _deployment(wheel_python_version="2.7", runtime_version="9.9"))
 
@@ -110,7 +170,7 @@ def test_python_version_mismatch_names_the_fix(tmp_path):
         fbb.bootstrap(zip_path, scratch_root=tmp_path / "scratch", add_to_sys_path=False)
 
     message = str(excinfo.value)
-    assert "Python 2.7" in message and "Runtime 9.9" in message and RUNNING_PYTHON in message
+    assert "Python 2.7" in message and "runtime '9.9'" in message and RUNNING_PYTHON in message
     assert "--runtime" in message
     assert not (tmp_path / "scratch").exists()  # failed before touching disk
 

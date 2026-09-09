@@ -1,19 +1,22 @@
-"""Shared machinery for publishing the dbt project bundle to OneLake.
+"""Shared machinery for publishing the dbt project bundles to OneLake.
 
-A bundle is the zip ``NB_dbt_Runner_Spark`` installs from at session start
-(``tools/fabric_bundle_bootstrap.py`` explains the notebook side).
-``publish_dbt_bundle.py`` declares a :class:`BundleSpec` and calls :func:`run`;
-everything else is here, once. Ported from the AANA Hub repository's
-``scripts/onelake_bundle.py`` (2026-09), minus the parts that only that
-monorepo needs (a second bundle, the environment-runtime cross-check, the
-``pyproject.toml`` pin lookup).
+A bundle is the zip a runner notebook installs from at session start
+(``tools/fabric_bundle_bootstrap.py`` explains the notebook side). There are
+two: ``NB_dbt_Runner_Spark`` (PySpark notebook, Spark Runtime 2.0) and
+``NB_dbt_Runner`` (Python notebook, Python 3.11 kernel) run on different
+images with different preinstalled packages, so each gets a bundle resolved
+against its own runtime manifest. ``publish_dbt_bundle.py`` declares one
+:class:`BundleSpec` per notebook and calls :func:`run`; everything else is
+here, once. Ported from the AANA Hub repository's ``scripts/onelake_bundle.py``
+(2026-09), minus the parts that only that monorepo needs (the
+environment-runtime cross-check, the ``pyproject.toml`` pin lookup).
 
 What ``run`` does:
 
 1. **Resolve against the runtime.** ``pip install --dry-run --report`` of the
    spec's requirements plus the freshly built first-party wheels, targeted at
-   the Fabric runtime's Python/platform (cp313, manylinux2014,
-   ``--only-binary=:all:``) and constrained by the vendored manifest of what
+   the Fabric runtime's Python/platform (its CPython, manylinux2014 or
+   manylinux_2_28, ``--only-binary=:all:``) and constrained by the vendored manifest of what
    that runtime already ships (``tools/runtime_constraints/``). A requirement
    that would force a runtime package to a different version is a *resolution
    failure* — loud, at publish time — unless the spec allow-lists it in
@@ -70,8 +73,10 @@ AUTH_RECORD_PATH = Path.home() / ".getting-started-with-dbt" / "onelake-publish-
 PERSISTENT_CACHE_NAME = "getting-started-with-dbt-onelake-publish"
 GUID_PATTERN = re.compile(r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 
-# Fabric Spark drivers are x86_64 Azure Linux; every runtime so far.
-WHEEL_PLATFORM = "manylinux2014_x86_64"
+# Fabric kernels run on x86_64 Azure Linux 3.0 (glibc 2.38), every runtime so
+# far. Accept both the classic manylinux2014 tag and manylinux_2_28: newer
+# compiled wheels (mssql-python, dbt-fabric's driver) publish only the latter.
+WHEEL_PLATFORMS = ("manylinux2014_x86_64", "manylinux_2_28_x86_64")
 # Never ship Spark itself: the notebook's sys.path.insert(0) would make the
 # bundle's copy shadow the runtime's, and the session dies or misbehaves.
 RUNTIME_PROVIDED_PREFIXES = ("pyspark", "py4j")
@@ -83,21 +88,51 @@ _MANIFEST_BASE = (
 
 @dataclass(frozen=True)
 class RuntimeProfile:
-    """One Fabric Spark runtime: the driver Python its wheels must target."""
+    """One Fabric notebook runtime: the Python its wheels must target and where
+    Microsoft publishes the list of packages it preinstalls.
+
+    ``manifest_format`` says how ``refresh_runtime_constraints.py`` reads that
+    list: ``conda-yml`` for the Spark runtimes (one environment YML per
+    runtime) or ``release-markdown`` for the Python-notebook image, whose
+    release notes carry one package table per kernel (``manifest_section``
+    names the table). ``manifest_url`` is either the file itself or, when
+    ``manifest_is_index`` is set, a GitHub contents-API folder listing from
+    which the newest ``.md`` release note is picked (the file name carries the
+    release date, so a fixed URL would go stale).
+    """
 
     version: str
     python_version: str
     constraints_file: str
     manifest_url: str
+    description: str = ""
+    manifest_format: str = "conda-yml"
+    manifest_section: str = ""
+    manifest_is_index: bool = False
 
 
-# One profile per runtime the workspace's Spark settings can select. Adding a
-# runtime is one entry here plus
-# `python tools/refresh_runtime_constraints.py --runtime <version>`.
+_JUPYTER_INDEX = (
+    "https://api.github.com/repos/microsoft/synapse-spark-runtime/contents/Fabric/Jupyter%201.0"
+)
+
+# One profile per runtime a notebook can run on. Adding one is one entry here
+# plus `python tools/refresh_runtime_constraints.py --runtime <key>`.
 RUNTIME_PROFILES: dict[str, RuntimeProfile] = {
+    # Spark notebooks: the workspace's Spark settings select the runtime.
     "2.0": RuntimeProfile(
         "2.0", "3.13", "fabric-runtime-2.0-python313.txt",
         _MANIFEST_BASE + "Runtime%202.0%20(Spark%204.1)/Fabric-Python313-CPU.yml",
+        description="Fabric Spark Runtime 2.0 (Spark 4.1), driver Python 3.13 - PySpark notebooks",
+    ),
+    # Python notebooks (no Spark): one image ("Jupyter 1.0") with three kernels; the
+    # notebook's metadata picks the kernel, so the profile is per kernel.
+    "python-3.11": RuntimeProfile(
+        "python-3.11", "3.11", "fabric-python-notebook-python311.txt",
+        _JUPYTER_INDEX,
+        description="Fabric Python notebook (Jupyter 1.0 image), Python 3.11 kernel",
+        manifest_format="release-markdown",
+        manifest_section="Python3.11",
+        manifest_is_index=True,
     ),
 }
 
@@ -122,6 +157,8 @@ class BundleSpec:
     requirements: Sequence[str]
     first_party_dirs: Sequence[Path] = ()
     overrides: Mapping[str, Override] = field(default_factory=dict)
+    default_destination: str = ""  # path under the lakehouse Files/ folder
+    consumer: str = ""  # the notebook that installs this bundle (for messages and deployment.json)
 
 
 @dataclass
@@ -194,7 +231,7 @@ def load_constraints(profile: RuntimeProfile) -> tuple[dict[str, str], dict[str,
         if not line:
             continue
         if line.startswith("#"):
-            match = re.match(r"#\s*(source|manifest_sha256):\s*(\S+)", line)
+            match = re.match(r"#\s*(source|manifest_sha256|manifest_section):\s*(\S+)", line)
             if match:
                 header[match.group(1)] = match.group(2)
             continue
@@ -282,7 +319,7 @@ def resolve_and_download(work: Path, spec: BundleSpec, profile: RuntimeProfile) 
     ]
     target_args = [
         "--python-version", profile.python_version,
-        "--platform", WHEEL_PLATFORM,
+        *(arg for platform in WHEEL_PLATFORMS for arg in ("--platform", platform)),
         "--only-binary=:all:",
     ]
 
@@ -295,8 +332,8 @@ def resolve_and_download(work: Path, spec: BundleSpec, profile: RuntimeProfile) 
     ])
     if result.returncode != 0:
         _fail(
-            f"Bundle '{spec.name}' cannot be resolved for Fabric Runtime {profile.version} "
-            f"(Python {profile.python_version}) against the runtime's pinned packages "
+            f"Bundle '{spec.name}' cannot be resolved for Fabric runtime '{profile.version}' "
+            f"({profile.description}; Python {profile.python_version}) against the runtime's pinned packages "
             f"({header['file']}). Either a requirement is incompatible with this runtime, "
             "or you intend to replace the runtime's copy of a package: add it to "
             "CONSTRAINT_OVERRIDES in the publish script with a reason (and a pin when only a "
@@ -329,7 +366,7 @@ def resolve_and_download(work: Path, spec: BundleSpec, profile: RuntimeProfile) 
             override = override_names.get(name)
             if override is None:
                 raise SystemExit(
-                    f"Bundle '{spec.name}' resolved {pin} but Runtime {profile.version} ships "
+                    f"Bundle '{spec.name}' resolved {pin} but runtime '{profile.version}' ships "
                     f"{runtime_version} and no override allows replacing it. This should be "
                     "impossible under the constraints file — is it stale? Re-run "
                     f"tools/refresh_runtime_constraints.py --runtime {profile.version}."
@@ -514,14 +551,21 @@ def upload_bundle(workspace: str, lakehouse: str, destination: str, payload: byt
 # ---------------------------------------------------------------------------
 
 
-def add_common_args(parser: argparse.ArgumentParser, *, spec: BundleSpec, default_lakehouse: str, default_destination: str) -> None:
+def add_common_args(parser: argparse.ArgumentParser, *, spec: BundleSpec, default_lakehouse: str) -> None:
+    runtimes = "; ".join(f"{key}: {p.description or p.version}" for key, p in RUNTIME_PROFILES.items())
     parser.add_argument("--workspace", help="Fabric workspace name or GUID that contains the lakehouse.")
     parser.add_argument("--lakehouse", default=default_lakehouse, help=f"Lakehouse name or GUID (default: {default_lakehouse}).")
-    parser.add_argument("--destination", default=default_destination, help="Target path under the lakehouse Files/ folder.")
+    parser.add_argument(
+        "--destination", default=spec.default_destination,
+        help=f"Target path under the lakehouse Files/ folder (default: {spec.default_destination}).",
+    )
     parser.add_argument("--build-version", default="", help="Optional build/version label recorded in deployment.json.")
     parser.add_argument(
         "--runtime", default=spec.default_runtime, choices=sorted(RUNTIME_PROFILES),
-        help=f"Fabric Spark runtime the wheels target (default: {spec.default_runtime}); must match the workspace's Spark runtime.",
+        help=(
+            f"Fabric runtime the wheels target (default: {spec.default_runtime}); must match the notebook "
+            f"that installs the bundle. Profiles: {runtimes}."
+        ),
     )
     parser.add_argument("--assemble-only", action="store_true", help="Resolve and build the zip without authenticating or uploading (CI).")
     parser.add_argument("--out", help="With --assemble-only: directory to write the zip and deployment.json into.")
@@ -534,19 +578,23 @@ def run(args: argparse.Namespace, spec: BundleSpec, entries: Callable[[], Sequen
     profile = RUNTIME_PROFILES[args.runtime]
 
     print(f"{'Assembling' if args.assemble_only else 'Publishing'} {label} (bundle '{spec.name}')")
-    print(f"  Runtime: {profile.version} (Python {profile.python_version}, {WHEEL_PLATFORM})")
+    print(f"  Runtime: {profile.version} (Python {profile.python_version}, {'/'.join(WHEEL_PLATFORMS)}) - {profile.description}")
+    if spec.consumer:
+        print(f"  Consumer: {spec.consumer}")
     if not args.assemble_only:
         print(f"  Workspace: {args.workspace}")
         print(f"  Lakehouse: {args.lakehouse}")
 
     metadata = {
         "project": spec.name,
+        "consumer": spec.consumer,
         "build_version": args.build_version,
         "commit": git_commit_hash(),
         "published_utc": datetime.now(timezone.utc).isoformat(),
         "runtime_version": profile.version,
+        "runtime_description": profile.description,
         "wheel_python_version": profile.python_version,
-        "wheel_platform": WHEEL_PLATFORM,
+        "wheel_platforms": list(WHEEL_PLATFORMS),
     }
     with tempfile.TemporaryDirectory(prefix=f"bundle-{spec.name}-") as tmp:
         wheels_dir, report, constraints = resolve_and_download(Path(tmp), spec, profile)

@@ -2,14 +2,16 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Publish Lakehouse bundle",
-      "detail": "Publish the bundle NB_dbt_Runner_Spark runs (dbt project + dbt_packages, dbt-fabricspark, jaffle-dbt-runner + deps the runtime lacks) to LH_Jaffle_Shop Files/dbt/jaffle_shop.zip in the chosen workspace. Runs from .venv-tools (tools\\setup-env.ps1 -Target tools).",
+      "label": "Publish Lakehouse bundle (Spark runner)",
+      "detail": "Publish the bundle NB_dbt_Runner_Spark runs (dbt project + dbt_packages, dbt-fabricspark, jaffle-dbt-runner + deps Runtime 2.0 lacks) to LH_Jaffle_Shop Files/dbt/jaffle_shop.zip in the chosen workspace. Runs from .venv-tools (tools\\setup-env.ps1 -Target tools).",
       "type": "shell",
       "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe",
       "args": [
         "-X",
         "utf8",
         "tools/publish_dbt_bundle.py",
+        "--runner",
+        "spark",
         "--workspace",
         "${input:fabricWorkspace}"
       ],
@@ -19,18 +21,29 @@
       "problemMatcher": []
     },
     {
-      "label": "Assemble Lakehouse bundle (no upload)",
-      "detail": "What CI does: resolve against the Runtime 2.0 manifest and build build/bundle/jaffle_shop.zip + deployment.json locally, without authenticating or uploading.",
+      "label": "Publish Lakehouse bundle (Python runner)",
+      "detail": "Publish the bundle NB_dbt_Runner runs (dbt project + dbt_packages, dbt-fabric + dbt-fabricspark + dbt-sqlserver, jaffle-dbt-runner + deps the Python-notebook image lacks) to LH_Jaffle_Shop Files/dbt/jaffle_shop_python.zip in the chosen workspace.",
       "type": "shell",
       "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe",
       "args": [
         "-X",
         "utf8",
         "tools/publish_dbt_bundle.py",
-        "--assemble-only",
-        "--out",
-        "build/bundle"
+        "--runner",
+        "python",
+        "--workspace",
+        "${input:fabricWorkspace}"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Assemble Lakehouse bundles (no upload)",
+      "detail": "What CI does: resolve both bundles against their runtime manifests and build build/bundle-spark/jaffle_shop.zip and build/bundle-python/jaffle_shop_python.zip (+ deployment.json) locally, without authenticating or uploading.",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe -X utf8 tools/publish_dbt_bundle.py --runner spark --assemble-only --out build/bundle-spark && ${workspaceFolder}/.venv-tools/Scripts/python.exe -X utf8 tools/publish_dbt_bundle.py --runner python --assemble-only --out build/bundle-python",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -53,16 +66,9 @@
     },
     {
       "label": "Refresh Fabric runtime constraints",
-      "detail": "Regenerate tools/runtime_constraints/fabric-runtime-2.0-python313.txt from Microsoft's runtime manifest (no-op until the manifest changes). Republish the bundle afterwards.",
+      "detail": "Regenerate tools/runtime_constraints/*.txt from Microsoft's runtime manifests: Spark Runtime 2.0 (conda YML) and the Python-notebook image, Python 3.11 kernel (newest release note). No-op until a manifest changes. Republish the bundles afterwards.",
       "type": "shell",
-      "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe",
-      "args": [
-        "-X",
-        "utf8",
-        "tools/refresh_runtime_constraints.py",
-        "--runtime",
-        "2.0"
-      ],
+      "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe -X utf8 tools/refresh_runtime_constraints.py --runtime 2.0 && ${workspaceFolder}/.venv-tools/Scripts/python.exe -X utf8 tools/refresh_runtime_constraints.py --runtime python-3.11",
       "options": {
         "cwd": "${workspaceFolder}"
       },

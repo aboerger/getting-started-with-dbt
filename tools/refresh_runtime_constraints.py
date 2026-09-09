@@ -1,24 +1,40 @@
-"""Regenerate the vendored pip constraints file for a Fabric Spark runtime.
+"""Regenerate the vendored pip constraints file for a Fabric notebook runtime.
 
-Microsoft publishes each runtime's exact base Python environment as a conda
-YML in github.com/microsoft/synapse-spark-runtime. This script turns that
-manifest into a pip constraints file (``name==version`` per package) under
-``tools/runtime_constraints/``. The publish scripts pass it to
-``pip download -c`` so a bundle is resolved *against what the runtime already
-ships*: any requirement that would force a runtime package to a different
-version fails the publish, loudly, at build time — unless it is explicitly
-allow-listed with a reason in that script's ``CONSTRAINT_OVERRIDES``. Wheels
+Microsoft publishes each runtime's base Python environment in
+github.com/microsoft/synapse-spark-runtime, in two shapes:
+
+* **Spark runtimes** (``manifest_format="conda-yml"``): one conda environment
+  YML per runtime, e.g. ``Runtime 2.0 (Spark 4.1)/Fabric-Python313-CPU.yml``.
+* **Python notebooks** (``manifest_format="release-markdown"``): the
+  ``Jupyter 1.0`` folder holds one release note per image build, a markdown
+  file with a package table per kernel (``# Python3.10`` / ``# Python3.11`` /
+  ``# Python3.12``). Upgraded entries read ``old ⬆️ new``; the *new* version is
+  the one the release ships, so that is what the constraints record. The file
+  name carries the release date, so the profile points at the folder (GitHub
+  contents API) and the newest ``.md`` is picked at refresh time.
+
+This script turns either into a pip constraints file (``name==version`` per
+package) under ``tools/runtime_constraints/``. The publish script passes it to
+``pip install --dry-run -c`` so a bundle is resolved *against what the runtime
+already ships*: any requirement that would force a runtime package to a
+different version fails the publish, loudly, at build time — unless it is
+explicitly allow-listed with a reason in that script's overrides. Wheels
 that resolve to the runtime's own version are then pruned from the bundle.
 
 That is the failure mode we want. ``pip check`` only ever sees *declared*
 conflicts (in the incident this tooling comes from it named opentelemetry and
 missed the protobuf upgrade that killed the Spark kernel); comparing against
-the manifest catches what actually gets replaced.
+the manifest catches what actually gets replaced. The Python-notebook runner
+hit the same class of problem from the other side: ``pip install`` of dbt on
+the driver upgraded azure-core on disk while the kernel kept the preinstalled
+1.29.4 it had already imported, and dbt-fabric's ``azure.identity`` import
+failed.
 
 Run by a human whenever a runtime update lands (the header records the
 manifest hash, so re-running is a no-op until Microsoft changes the file)::
 
     python tools/refresh_runtime_constraints.py --runtime 2.0
+    python tools/refresh_runtime_constraints.py --runtime python-3.11
 
 Conda-to-PyPI mapping is deliberately simple: names are normalized (PEP 503),
 a few known renames are mapped, versions that are not valid PEP 440 (system
@@ -32,12 +48,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import sys
 import urllib.request
 from pathlib import Path
 
-from onelake_bundle import CONSTRAINTS_DIR, RUNTIME_PROFILES, normalize_name, use_os_trust_store
+from onelake_bundle import CONSTRAINTS_DIR, RUNTIME_PROFILES, RuntimeProfile, normalize_name, use_os_trust_store
 
 # Conda package names whose PyPI project is spelled differently.
 CONDA_TO_PYPI = {
@@ -68,34 +85,119 @@ PEP440 = re.compile(
 
 CONDA_LINE = re.compile(r"^\s*-\s*([A-Za-z0-9_.\-]+)=([^=\s]+)(=\S+)?\s*$")
 PIP_LINE = re.compile(r"^\s*-\s*([A-Za-z0-9_.\-]+)==(\S+)\s*$")
+MARKDOWN_HEADING = re.compile(r"^#\s+(.*?)\s*$")
+UPGRADE_ARROW = "⬆"  # ⬆ (the release notes add a variation selector after it)
+
+
+def _accept(raw_name: str, version: str, pins: dict[str, str]) -> None:
+    if raw_name.startswith(("lib", "_")) or raw_name in SKIP_NAMES:
+        return
+    name = normalize_name(CONDA_TO_PYPI.get(raw_name, raw_name))
+    if name in SKIP_NAMES or not PEP440.match(version):
+        return
+    pins[name] = version
 
 
 def parse_manifest(text: str) -> dict[str, str]:
-    """Return {normalized pypi name: version} from a Fabric runtime conda YML."""
+    """Return {normalized pypi name: version} from a Fabric Spark runtime conda YML."""
     pins: dict[str, str] = {}
     for line in text.splitlines():
         match = PIP_LINE.match(line) or CONDA_LINE.match(line)
         if not match:
             continue
-        raw_name, version = match.group(1), match.group(2)
-        if raw_name.startswith(("lib", "_")) or raw_name in SKIP_NAMES:
-            continue
-        name = normalize_name(CONDA_TO_PYPI.get(raw_name, raw_name))
-        if name in SKIP_NAMES or not PEP440.match(version):
-            continue
-        pins[name] = version
+        _accept(match.group(1), match.group(2), pins)
     return pins
 
 
-def render(profile_version: str, source_url: str, digest: str, pins: dict[str, str]) -> str:
+def _release_version(cell: str) -> str:
+    """``**5.29.3 ⬆️ 6.33.6**`` -> ``6.33.6``; plain cells unchanged."""
+    cell = cell.replace("**", "").strip()
+    if UPGRADE_ARROW in cell:
+        cell = cell.split(UPGRADE_ARROW, 1)[1]
+    return cell.replace("️", "").strip()
+
+
+def parse_release_markdown(text: str, section: str) -> dict[str, str]:
+    """Return {normalized pypi name: version} from one kernel's table in a
+    Python-notebook release note (``# Python3.11`` etc.).
+
+    Rows carry two name/version pairs (``|name|version|name|version|``);
+    upgraded entries are bold with ``old ⬆️ new`` and resolve to ``new``.
+    """
+    pins: dict[str, str] = {}
+    in_section = False
+    for line in text.splitlines():
+        heading = MARKDOWN_HEADING.match(line)
+        if heading:
+            in_section = heading.group(1).replace(" ", "").lower() == section.replace(" ", "").lower()
+            continue
+        if not in_section or not line.strip().startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 2 or set("".join(cells)) <= set("-: "):
+            continue  # separator row
+        for i in range(0, len(cells) - 1, 2):
+            name = cells[i].replace("**", "").strip()
+            version = _release_version(cells[i + 1])
+            if not name or name.lower() == "name" or not version:
+                continue
+            _accept(name, version, pins)
+    if not pins:
+        raise SystemExit(f"No package table found under heading '# {section}' - format changed?")
+    return pins
+
+
+def newest_release_note(index_json: str, index_url: str) -> str:
+    """Pick the newest ``.md`` in a GitHub contents-API folder listing.
+
+    Release notes are named ``...-Rel-<YYYY-MM-DD>.<n>-rc.<m>.md``, so the
+    lexically greatest name is the latest release.
+    """
+    entries = json.loads(index_json)
+    names = sorted(e["name"] for e in entries if e.get("type") == "file" and e["name"].endswith(".md"))
+    if not names:
+        raise SystemExit(f"No .md release note found in {index_url}")
+    download = next(e["download_url"] for e in entries if e["name"] == names[-1])
+    return download
+
+
+def fetch_text(url: str) -> str:
+    request = urllib.request.Request(url, headers={"User-Agent": "getting-started-with-dbt/refresh-constraints"})
+    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310 — fixed https URL
+        return response.read().decode("utf-8")
+
+
+def resolve_manifest(profile: RuntimeProfile, manifest_file: str | None) -> tuple[str, str]:
+    """Return (manifest text, source URL or path)."""
+    if manifest_file:
+        return Path(manifest_file).read_text(encoding="utf-8"), manifest_file
+    url = profile.manifest_url
+    if profile.manifest_is_index:
+        url = newest_release_note(fetch_text(url), url)
+    return fetch_text(url), url
+
+
+def parse_for_profile(profile: RuntimeProfile, text: str) -> dict[str, str]:
+    if profile.manifest_format == "release-markdown":
+        return parse_release_markdown(text, profile.manifest_section)
+    if profile.manifest_format == "conda-yml":
+        return parse_manifest(text)
+    raise SystemExit(f"Unknown manifest_format {profile.manifest_format!r} on runtime profile {profile.version}")
+
+
+def render(profile: RuntimeProfile, source_url: str, digest: str, pins: dict[str, str]) -> str:
     header = [
-        f"# Fabric Runtime {profile_version} base Python packages, as pip constraints.",
+        f"# Fabric runtime '{profile.version}' ({profile.description}) base Python packages, as pip constraints.",
         "# GENERATED by tools/refresh_runtime_constraints.py — do not edit by hand.",
         f"# source: {source_url}",
         f"# manifest_sha256: {digest}",
-        "# Consumed by tools/onelake_bundle.py (pip download -c) so a bundle can",
-        "# never replace a runtime package without an explicit CONSTRAINT_OVERRIDES",
-        "# entry in the publish script.",
+    ]
+    if profile.manifest_section:
+        header.append(f"# manifest_section: {profile.manifest_section}")
+    header += [
+        "# Consumed by tools/onelake_bundle.py (pip install --dry-run -c) so a bundle can",
+        "# never replace a runtime package without an explicit override entry in the",
+        "# publish script.",
         "",
     ]
     body = [f"{name}=={version}" for name, version in sorted(pins.items())]
@@ -103,7 +205,7 @@ def render(profile_version: str, source_url: str, digest: str, pins: dict[str, s
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--runtime", required=True, choices=sorted(RUNTIME_PROFILES))
     parser.add_argument(
         "--manifest-file",
@@ -113,24 +215,20 @@ def main() -> int:
     profile = RUNTIME_PROFILES[args.runtime]
 
     use_os_trust_store()  # corporate proxy CA lives in the OS store, not certifi
-    if args.manifest_file:
-        text = Path(args.manifest_file).read_text(encoding="utf-8")
-    else:
-        with urllib.request.urlopen(profile.manifest_url, timeout=60) as response:  # noqa: S310 — fixed https URL
-            text = response.read().decode("utf-8")
+    text, source = resolve_manifest(profile, args.manifest_file)
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-    pins = parse_manifest(text)
+    pins = parse_for_profile(profile, text)
     if len(pins) < 50:
         raise SystemExit(f"Only {len(pins)} packages parsed from the manifest — format changed?")
 
     target = CONSTRAINTS_DIR / profile.constraints_file
-    content = render(profile.version, profile.manifest_url, digest, pins)
+    content = render(profile, source, digest, pins)
     if target.is_file() and target.read_text(encoding="utf-8") == content:
         print(f"{target.relative_to(CONSTRAINTS_DIR.parent.parent)}: unchanged ({len(pins)} packages)")
         return 0
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
-    print(f"{target.relative_to(CONSTRAINTS_DIR.parent.parent)}: written ({len(pins)} packages)")
+    print(f"{target.relative_to(CONSTRAINTS_DIR.parent.parent)}: written ({len(pins)} packages) from {source}")
     return 0
 
 

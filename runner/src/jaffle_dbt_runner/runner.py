@@ -1,20 +1,31 @@
-"""Orchestration for one dbt invocation inside the Fabric Spark runner notebook.
+"""Orchestration for one dbt invocation inside a Fabric runner notebook.
 
-``run_project()`` is the single entry point ``NB_dbt_Runner_Spark`` calls. It
+``run_project()`` is the single entry point both runner notebooks call. It
 accepts the notebook's pipeline parameters verbatim (strings are fine, so are
 the Python bools/ints an interactive user types) and owns everything after the
-project zip is extracted: parameter validation, dbt argv construction, the
-in-process ``dbtRunner`` call, result summaries, and the upload of dbt.log and
-the run artifacts to OneLake.
+project zip is extracted: parameter validation, the environment variables the
+project's ``profiles.yml`` reads for the chosen target, dbt argv construction,
+the in-process ``dbtRunner`` call, result summaries, and the upload of dbt.log
+and the run artifacts to OneLake.
 
-dbt executes in-process on the notebook driver via dbt-fabricspark's
-``method: session`` (the ``lakehouse_session`` output in the project's
-profiles.yml), attaching to the notebook's own Spark session — no Livy API, no
-endpoint, no credentials, nothing to tear down. dbt-fabricspark and this
-package arrive together in the published bundle's ``wheels/`` folder.
+Targets (``profiles.yml`` outputs) and how each authenticates as the notebook:
 
-``dbt`` and ``notebookutils`` are imported lazily inside the functions that
-need them, so the unit tests need nothing installed.
+``lakehouse_session`` (``NB_dbt_Runner_Spark``, PySpark notebook)
+    dbt-fabricspark ``method: session`` attaches to the notebook's own Spark
+    session - no Livy API, no endpoint, no credentials, nothing to tear down.
+``warehouse`` (``NB_dbt_Runner``, Python notebook)
+    dbt-fabric with ``authentication: notebookutils``: the adapter asks
+    ``notebookutils.credentials.getToken`` for a SQL-scoped token.
+``lakehouse`` (``NB_dbt_Runner``)
+    dbt-fabricspark ``method: livy`` with ``authentication: fabric_notebook``:
+    the adapter opens a Livy session on the lakehouse as the notebook identity.
+``sqldb`` (``NB_dbt_Runner``)
+    dbt-sqlserver has no notebookutils mode, so this module fetches the token
+    itself and hands it over as ``ActiveDirectoryAccessToken``.
+
+dbt, the adapters and this package arrive together in the published bundle's
+``wheels/`` folder. ``dbt`` and ``notebookutils`` are imported lazily inside the
+functions that need them, so the unit tests need nothing installed.
 """
 
 from __future__ import annotations
@@ -23,6 +34,7 @@ import json
 import os
 import re
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib import metadata as importlib_metadata
 from pathlib import Path
@@ -30,9 +42,38 @@ from pathlib import Path
 VALID_COMMANDS = ("build", "run", "test", "seed", "snapshot", "compile", "docs generate")
 FULL_REFRESH_COMMANDS = frozenset({"build", "run", "seed"})
 VALID_LOG_LEVELS = frozenset({"debug", "info", "warn", "error", "none"})
-LOCAL_DBT_LOG_DIR = "/tmp/dbt-logs"  # noqa: S108 — Fabric driver-local scratch disk
+LOCAL_DBT_LOG_DIR = "/tmp/dbt-logs"  # noqa: S108 — Fabric kernel-local scratch disk
 PRESERVED_ARTIFACTS = ("run_results.json", "manifest.json")
-REQUIRED_PACKAGES = ("dbt-core", "dbt-fabricspark", "jaffle-dbt-runner")
+
+# Entra resource the SQL database accepts (the same one dbt-sqlserver's own
+# Azure modes request). notebookutils tokens live about an hour; dbt-sqlserver
+# only needs a non-zero expiry, and a static token cannot be refreshed, so a
+# run must finish inside that hour (the full Jaffle Shop build takes ~1 min).
+SQLDB_TOKEN_SCOPE = "https://database.windows.net/.default"
+TOKEN_LIFETIME_SECONDS = 3600
+REDACTED_ENV_KEYS = frozenset({"DBT_SQLDB_ACCESS_TOKEN"})
+
+
+@dataclass(frozen=True)
+class TargetSpec:
+    adapter: str  # distribution the bundle must carry for this target
+    connection: str  # one line for the run header
+
+
+TARGETS: dict[str, TargetSpec] = {
+    "lakehouse_session": TargetSpec(
+        "dbt-fabricspark", "in-process Spark session (dbt-fabricspark method: session)"
+    ),
+    "warehouse": TargetSpec(
+        "dbt-fabric", "Fabric Warehouse over TDS (dbt-fabric, authentication: notebookutils)"
+    ),
+    "lakehouse": TargetSpec(
+        "dbt-fabricspark", "Livy session on the lakehouse (dbt-fabricspark method: livy, authentication: fabric_notebook)"
+    ),
+    "sqldb": TargetSpec(
+        "dbt-sqlserver", "Fabric SQL database over ODBC (dbt-sqlserver, ActiveDirectoryAccessToken from notebookutils)"
+    ),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +100,13 @@ def normalize_command(command) -> str:
     if command not in VALID_COMMANDS:
         raise ValueError(f"command must be one of {list(VALID_COMMANDS)}, got {command!r}.")
     return command
+
+
+def normalize_target(target) -> str:
+    target = str(target or "").strip().lower()
+    if target not in TARGETS:
+        raise ValueError(f"target must be one of {sorted(TARGETS)}, got {target!r}.")
+    return target
 
 
 def build_argv(
@@ -95,6 +143,80 @@ def build_argv(
         argv += ["--vars", json.dumps(vars_dict)]
     argv += [str(arg) for arg in extra_args]
     return argv
+
+
+# ---------------------------------------------------------------------------
+# target -> environment variables for profiles.yml (pure, unit-tested)
+# ---------------------------------------------------------------------------
+
+
+def target_environment(
+    target,
+    *,
+    schema,
+    lakehouse_name="",
+    lakehouse_id="",
+    workspace_id="",
+    warehouse_host="",
+    warehouse_name="",
+    sqldb_host="",
+    sqldb_name="",
+    access_token: tuple[str, int] | None = None,
+) -> dict[str, str]:
+    """The environment variables the project's ``profiles.yml`` output for
+    ``target`` reads, or a ``ValueError`` naming the missing parameter.
+
+    Only what the chosen output needs is set; the authentication mode is fixed
+    per target because all of them run as the notebook identity. ``access_token``
+    is ``(token, expires_on_epoch)`` and only ``sqldb`` needs it - the caller
+    fetches it (see :func:`notebook_access_token`) so this stays pure.
+    """
+    target = normalize_target(target)
+    schema = str(schema or "").strip()
+    if not schema:
+        raise ValueError("schema is required.")
+
+    def required(name, value) -> str:
+        value = str(value or "").strip()
+        if not value:
+            raise ValueError(f"{name} is required for target {target!r}.")
+        return value
+
+    env = {"DBT_SCHEMA": schema}
+    if target == "lakehouse_session":
+        lakehouse = required("lakehouse_name", lakehouse_name)
+        if schema == lakehouse:
+            # With method: session the adapter cannot ask the Fabric API whether the
+            # lakehouse is schema-enabled; `schema != lakehouse` is what tells it to
+            # render three-part names (LH_Jaffle_Shop.jaffle_shop.customers).
+            raise ValueError("schema must differ from the lakehouse name (schema-enabled lakehouse).")
+        env["DBT_LAKEHOUSE_NAME"] = lakehouse
+    elif target == "warehouse":
+        env["DBT_WAREHOUSE_HOST"] = required("warehouse_host", warehouse_host)
+        env["DBT_WAREHOUSE_NAME"] = required("warehouse_name", warehouse_name)
+        env["DBT_AUTH"] = "notebookutils"
+    elif target == "lakehouse":
+        env["DBT_FABRIC_WORKSPACE_ID"] = required("workspace_id", workspace_id)
+        env["DBT_LAKEHOUSE_ID"] = required("lakehouse_id", lakehouse_id)
+        env["DBT_LAKEHOUSE_NAME"] = required("lakehouse_name", lakehouse_name)
+        env["DBT_SPARK_AUTH"] = "fabric_notebook"
+    elif target == "sqldb":
+        env["DBT_SQLDB_HOST"] = required("sqldb_host", sqldb_host)
+        env["DBT_SQLDB_NAME"] = required("sqldb_name", sqldb_name)
+        if not access_token or not str(access_token[0]).strip():
+            raise ValueError("access_token is required for target 'sqldb'.")
+        token, expires_on = access_token
+        env["DBT_AUTH"] = "ActiveDirectoryAccessToken"
+        env["DBT_SQLDB_ACCESS_TOKEN"] = str(token)
+        env["DBT_SQLDB_ACCESS_TOKEN_EXPIRES_ON"] = str(int(expires_on))
+    return env
+
+
+def notebook_access_token(scope: str = SQLDB_TOKEN_SCOPE, lifetime_seconds: int = TOKEN_LIFETIME_SECONDS) -> tuple[str, int]:
+    """A token for ``scope`` as the notebook identity, with the expiry dbt-sqlserver wants."""
+    import notebookutils
+
+    return notebookutils.credentials.getToken(scope), int(time.time()) + int(lifetime_seconds)
 
 
 # ---------------------------------------------------------------------------
@@ -232,12 +354,22 @@ def run_dbt(argv_head, project_dir, target, persisted_log_root, label) -> dict:
     }
 
 
+def required_packages(target: str) -> tuple[str, ...]:
+    return ("dbt-core", TARGETS[target].adapter, "jaffle-dbt-runner")
+
+
 def run_project(
     *,
     project_dir,
     onelake_root="",
     target="lakehouse_session",
     lakehouse_name="LH_Jaffle_Shop",
+    lakehouse_id="",
+    workspace_id="",
+    warehouse_host="",
+    warehouse_name="",
+    sqldb_host="",
+    sqldb_name="",
     schema="jaffle_shop",
     command="build",
     select="",
@@ -250,29 +382,22 @@ def run_project(
     dbt_log_level="info",
     dbt_log_level_file="debug",
 ) -> dict:
-    """Run the Jaffle Shop dbt project against the notebook's Spark session.
+    """Run the Jaffle Shop dbt project against one Fabric target as the notebook identity.
 
-    Validates eagerly (bad parameters fail before dbt is even imported), runs
-    ``dbt deps`` only when the bundle did not vendor ``dbt_packages/``, runs the
-    one-time seed when ``load_source_data`` is true, then the requested
+    Validates eagerly (bad parameters fail before dbt is even imported), exports
+    the environment variables the ``target`` output of ``profiles.yml`` reads,
+    runs ``dbt deps`` only when the bundle did not vendor ``dbt_packages/``,
+    runs the one-time seed when ``load_source_data`` is true, then the requested
     ``command``, and always uploads dbt's file log in a finally block.
     ``onelake_root`` is the lakehouse's abfss root, used only for the uploads
     under ``dbt_log_path``; leaving either blank disables them. Returns the
     outcome dict the notebook hands to ``notebookutils.notebook.exit``.
     """
     project_dir = Path(project_dir)
+    target = normalize_target(target)
     command = normalize_command(command)
     full_refresh_flag = parse_bool(full_refresh)
     extra_args = string_list(dbt_extra_args)
-    lakehouse_name = str(lakehouse_name or "").strip()
-    schema = str(schema or "").strip()
-    if not lakehouse_name or not schema:
-        raise ValueError("lakehouse_name and schema are required.")
-    if schema == lakehouse_name:
-        # With method: session the adapter cannot ask the Fabric API whether the
-        # lakehouse is schema-enabled; `schema != lakehouse` is what tells it to
-        # render three-part names (LH_Jaffle_Shop.jaffle_shop.customers).
-        raise ValueError("schema must differ from the lakehouse name (schema-enabled lakehouse).")
     _export_log_levels(dbt_log_level, dbt_log_level_file)
 
     def _argv(cmd, vars_dict=None, select_value=select, exclude_value=exclude):
@@ -286,12 +411,26 @@ def run_project(
             extra_args=extra_args,
         )
 
-    # Validate the main argv before touching the filesystem or importing dbt.
+    # Validate the main argv and the connection parameters before touching the
+    # filesystem, importing dbt or asking for a token.
     main_argv = _argv(command)
+    connection_params = dict(
+        schema=schema,
+        lakehouse_name=lakehouse_name,
+        lakehouse_id=lakehouse_id,
+        workspace_id=workspace_id,
+        warehouse_host=warehouse_host,
+        warehouse_name=warehouse_name,
+        sqldb_host=sqldb_host,
+        sqldb_name=sqldb_name,
+    )
+    if target == "sqldb":
+        target_environment(target, access_token=("validate", 1), **connection_params)
+        env = target_environment(target, access_token=notebook_access_token(), **connection_params)
+    else:
+        env = target_environment(target, **connection_params)
+    os.environ.update(env)
 
-    # The lakehouse_session output of profiles.yml reads these two variables.
-    os.environ["DBT_LAKEHOUSE_NAME"] = lakehouse_name
-    os.environ["DBT_SCHEMA"] = schema
     persisted_log_root = f"{onelake_root}/{dbt_log_path}" if onelake_root and dbt_log_path else ""
     if dbt_log_path:
         os.environ["DBT_LOG_PATH"] = LOCAL_DBT_LOG_DIR
@@ -301,22 +440,25 @@ def run_project(
     build_version = str(deployment.get("build_version") or "").strip()
 
     print("=== dbt target ===", flush=True)
-    _log("Connection", "in-process Spark session (dbt-fabricspark method: session)")
-    _log("Target / lakehouse / schema", f"{target} / {lakehouse_name} / {schema}")
+    _log("Target", target)
+    _log("Connection", TARGETS[target].connection)
+    _log("Profile environment", ", ".join(
+        f"{key}={'<redacted>' if key in REDACTED_ENV_KEYS else value}" for key, value in sorted(env.items())
+    ))
     _log("Command", " ".join(main_argv))
     _log("Project directory", project_dir)
     _log("Deployed commit", commit or "<none>")
     _log("Deployed build version", build_version or "<none>")
     _log("Log upload destination", persisted_log_root or "disabled (local only)")
-    for package_name in REQUIRED_PACKAGES:
+    for package_name in required_packages(target):
         try:
             _log(package_name, importlib_metadata.version(package_name))
         except importlib_metadata.PackageNotFoundError as exc:
             raise RuntimeError(
                 f"{package_name} is not installed. The published zip's wheels/ folder "
                 "supplies it — the bootstrap cell must run before this one, and the zip "
-                "must come from tools/publish_dbt_bundle.py (check deployment.json's "
-                "wheel_python_version against the driver Python if pip could not install it)."
+                "must come from tools/publish_dbt_bundle.py with the --runner that matches "
+                "this notebook (check deployment.json's consumer and wheel_python_version)."
             ) from exc
 
     runs = []
@@ -345,6 +487,7 @@ def run_project(
     return {
         "status": "ok",
         "target": target,
+        "connection": TARGETS[target].connection,
         "command": command,
         "select": select,
         "exclude": exclude,

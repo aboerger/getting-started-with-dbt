@@ -10,7 +10,8 @@
 # Interactive auth on a laptop: `az login`, then the default authentication (CLI) works for all three.
 # Automation: DBT_AUTH=environment (Warehouse, SQL DB) / DBT_SPARK_AUTH=SPN (Lakehouse) plus the
 # AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET variables.
-# Fabric Python notebook: DBT_AUTH=notebookutils / DBT_SPARK_AUTH=fabric_notebook.
+# Fabric Python notebook (NB_dbt_Runner, set by runner/): DBT_AUTH=notebookutils (Warehouse),
+# DBT_SPARK_AUTH=fabric_notebook (Lakehouse over Livy), DBT_AUTH=ActiveDirectoryAccessToken + token (SQL DB).
 jaffle_shop:
   target: warehouse
   outputs:
@@ -69,6 +70,11 @@ jaffle_shop:
       database: "{{ env_var('DBT_SQLDB_NAME') }}"
       schema: "{{ env_var('DBT_SCHEMA', 'jaffle_shop') }}"
       authentication: "{{ env_var('DBT_AUTH', 'CLI') }}"
+      # Fabric Python notebook (NB_dbt_Runner): dbt-sqlserver has no notebookutils mode, so the runner sets
+      # DBT_AUTH=ActiveDirectoryAccessToken and hands over a token from notebookutils.credentials.getToken
+      # through these two variables. Both are ignored under every other authentication mode.
+      access_token: "{{ env_var('DBT_SQLDB_ACCESS_TOKEN', '') }}"
+      access_token_expires_on: "{{ env_var('DBT_SQLDB_ACCESS_TOKEN_EXPIRES_ON', '0') | int }}"
       # Fabric SQL database: workspace-role identities are not database users, so schemas
       # must be created with an explicit owner (CREATE SCHEMA ... AUTHORIZATION [dbo]).
       schema_authorization: dbo

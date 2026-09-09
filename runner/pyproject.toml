@@ -7,10 +7,10 @@ name = "jaffle-dbt-runner"
 # Bump on behavior changes. No committed wheel: tools/publish_dbt_bundle.py
 # builds this package fresh (`pip wheel --no-deps`) into every published zip's
 # wheels/ folder, so runner, project and adapter always version together.
-version = "1.0.0"
-description = "In-notebook runner for the Jaffle Shop dbt project (NB_dbt_Runner_Spark)."
+version = "1.1.0"
+description = "In-notebook runner for the Jaffle Shop dbt project (NB_dbt_Runner_Spark, NB_dbt_Runner)."
 readme = "README.md"
-# Fabric Runtime 2.0's Python; the package runs on that driver and nowhere else.
+# Fabric Runtime 2.0 (Python 3.13) and the Python notebook kernel (3.11); the package runs there and nowhere else.
 requires-python = ">=3.11"
 authors = [{name = "Andrew Boerger"}]
 # No declared dependencies ON PURPOSE. Everything heavier than the stdlib is

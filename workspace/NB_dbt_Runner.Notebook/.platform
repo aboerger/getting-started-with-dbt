@@ -3,7 +3,7 @@
   "metadata": {
     "type": "Notebook",
     "displayName": "NB_dbt_Runner",
-    "description": "Runs the Jaffle Shop dbt project from GitHub against the Warehouse, Lakehouse or SQL database. Python notebook, parameterised by target and command."
+    "description": "Runs the Jaffle Shop dbt project against the Warehouse, Lakehouse (Livy) or SQL database from the published bundle Files/dbt/jaffle_shop_python.zip in LH_Jaffle_Shop. Python notebook (Python 3.11 kernel), parameterised by target and command."
   },
   "config": {
     "version": "2.0",

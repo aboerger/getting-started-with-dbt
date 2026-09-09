@@ -35,9 +35,9 @@ Expected numbers were computed from the seed data and confirmed live on the Ware
 5. `tools\scenario.ps1 status` says intact; `git status` clean.
 6. Warm the Spark session: `dbt run --select stg_products --target lakehouse` ten minutes before Demo 4 (a cold Livy session takes ~70 s to start; `reuse_session: true` keeps it).
 7. Fallback recordings of Demo 4 (Spark) and Demo 5 ready to play.
-   If `NB_dbt_Runner_Spark` is on the show list, publish the bundle from the code you will show
-   (`.\.venv-tools\Scripts\Activate.ps1; python tools\publish_dbt_bundle.py --workspace <workspace>`) and run
-   the notebook once so its last run and `Files/dbt-logs` exist.
+   If a runner notebook is on the show list, publish its bundle from the code you will show
+   (`.\.venv-tools\Scripts\Activate.ps1; python tools\publish_dbt_bundle.py --runner spark --workspace <workspace>`,
+   and `--runner python` for `NB_dbt_Runner`) and run the notebook once so its last run and `Files/dbt-logs` exist.
 8. Terminal font large; `.venv-warehouse` active; working directory `jaffle_shop`.
 
 ## Demo 1 · Fabric Warehouse · Build a useful mart (10:00-19:00)
@@ -160,7 +160,9 @@ rehearsal, but the adapter is not certified for it.
   published artifact, and the "Drop CI schema" step.
 - **Fabric dbt job**: open `DBT_Jaffle_Shop_WH`, show the GitHub source, the Output tab of the last run and the
   Lineage view.
-- **Fabric notebook**: open `NB_dbt_Runner`, show the parameters cell and the exit value of the last run.
+- **Fabric Python notebook**: open `NB_dbt_Runner`, show the parameters cell (`target` switches engine, nothing else
+  changes), the bootstrap cell's output (`Bundle jaffle_shop_python.zip: ... wheels=29`, `Evicted ... azure`) and the
+  exit value of the last run. The story: same bundle pattern as the Spark notebook, three engines, notebook identity.
 - **Fabric Spark notebook**: open `NB_dbt_Runner_Spark`, the Lakehouse-only variant. Point at the
   `lakehouse_session` output in `profiles.yml` (`method: session`, no ids, no credentials) and say that dbt is
   calling `spark.sql()` in the notebook's own session instead of going through Livy. Then the production

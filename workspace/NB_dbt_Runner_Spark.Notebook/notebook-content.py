@@ -14,8 +14,8 @@
 # # Run dbt inside this notebook's Spark session
 #
 # The Lakehouse-only runner, and the way a production platform runs dbt on Fabric (this is the
-# pattern the AANA Hub's Gold layer runs on). `NB_dbt_Runner` (Python notebook) drives
-# dbt-fabricspark over the Livy REST API: a separate Spark session, a ~70 s session start and one
+# pattern the AANA Hub's Gold layer runs on). `NB_dbt_Runner` (Python notebook, same bundle pattern)
+# drives dbt-fabricspark over the Livy REST API: a separate Spark session, a ~70 s session start and one
 # HTTP round trip per statement. This notebook is a **PySpark** notebook, so a Spark session already
 # exists when the first cell runs; dbt-fabricspark's `method: session` attaches to it with
 # `SparkSession.builder.getOrCreate()` and every dbt statement becomes a plain `spark.sql(...)` call
@@ -37,12 +37,12 @@
 #
 # | | `NB_dbt_Runner` (`lakehouse`) | `NB_dbt_Runner_Spark` (`lakehouse_session`) |
 # |---|---|---|
-# | notebook kind | Python | PySpark |
+# | notebook kind | Python (3.11 kernel) | PySpark |
 # | connection | Livy API, its own Spark session | this notebook's Spark session |
-# | code and dbt stack | GitHub zip + `pip install` from PyPI at run time | one published OneLake bundle, installed offline |
+# | code and dbt stack | published OneLake bundle `dbt/jaffle_shop_python.zip` (three adapters, Python-notebook image) | published OneLake bundle `dbt/jaffle_shop.zip` (dbt-fabricspark, Runtime 2.0) |
 # | credentials | notebook identity (`fabric_notebook`) | none: the session is already authorised |
 # | profile needs | workspace id, lakehouse id, endpoint | lakehouse name and schema only |
-# | where it also runs | laptop, CI, benchmarks | Fabric Spark notebooks only (needs PySpark) |
+# | where the target also runs | laptop, CI, benchmarks | Fabric Spark notebooks only (needs PySpark) |
 #
 # The `%%configure` cell binds `LH_Jaffle_Shop` as the default lakehouse **by name**, so the notebook
 # is correct in any workspace that holds a lakehouse of that name. With `method: session` the adapter
@@ -131,7 +131,7 @@ try:
 except Exception as exc:
     raise FileNotFoundError(
         f"Could not fetch Files/{bundle_zip} from {lakehouse_name}: publish it with "
-        "`python tools/publish_dbt_bundle.py --workspace <workspace name>` (from .venv-tools)."
+        "`python tools/publish_dbt_bundle.py --runner spark --workspace <workspace name>` (from .venv-tools)."
     ) from exc
 # zipimport: the bootstrap module runs straight from the zip, so no code has to
 # exist on the driver before it. Dropped from sys.path again once imported.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import zipfile
 from pathlib import Path
 
@@ -60,12 +61,72 @@ dependencies:
         assert skipped not in pins
 
 
+def test_release_markdown_parser_reads_one_kernel_table_and_takes_the_shipped_version():
+    """The Python-notebook image publishes a release note with one table per kernel."""
+    note = """# System Environment
+*   **VHD Name**: x.vhd
+
+# Components
+|Name|Version|
+|-----|-----|
+|**Notebookutils**|**2.1.6 ⬆️ 2.1.8**|
+
+# Python3.10
+|Name|Version|Name|Version|
+|-----|-----|-----|-----|
+|azure-core|1.20.0|pyodbc|4.0.39|
+
+# Python3.11
+|Name|Version|Name|Version|
+|-----|-----|-----|-----|
+|azure-core|1.29.4|**protobuf**|**5.29.3 ⬆️ 6.33.6**|
+|**azure-identity**|**1.17.1**|pyodbc|4.0.39|
+|typing_extensions|4.15.0|libprotobuf|5.29.3|
+|**ca-certificates**|**2025.8.3 ⬆️ 2026.5.20**|**notebookutils**|**2.1.6 ⬆️ 2.1.8**|
+|openssl|3.5.1w|python|3.11.13|
+
+# Python3.12
+|Name|Version|Name|Version|
+|-----|-----|-----|-----|
+|azure-core|1.40.0|pyodbc|5.3.0|
+"""
+    pins = rrc.parse_release_markdown(note, "Python3.11")
+    assert pins["azure-core"] == "1.29.4"  # not the 3.10 or 3.12 table
+    assert pins["protobuf"] == "6.33.6"  # upgraded entry: the version the release ships
+    assert pins["azure-identity"] == "1.17.1"  # bold without an arrow (new package)
+    assert pins["typing-extensions"] == "4.15.0"
+    assert pins["notebookutils"] == "2.1.8"
+    for skipped in ("libprotobuf", "ca-certificates", "openssl", "python", "name"):
+        assert skipped not in pins
+    with pytest.raises(SystemExit, match="Python3.9"):
+        rrc.parse_release_markdown(note, "Python3.9")
+
+
+def test_newest_release_note_picks_the_latest_dated_file():
+    listing = json.dumps([
+        {"name": "Candidate-Spark100.0-Rel-2026-03-01.0-rc.1.md", "type": "file", "download_url": "https://x/old.md"},
+        {"name": "Candidate-Spark100.0-Rel-2026-06-01.0-rc.1.md", "type": "file", "download_url": "https://x/new.md"},
+        {"name": "images", "type": "dir", "download_url": None},
+    ])
+    assert rrc.newest_release_note(listing, "https://api/x") == "https://x/new.md"
+    with pytest.raises(SystemExit, match="No .md"):
+        rrc.newest_release_note("[]", "https://api/x")
+
+
 def test_vendored_constraints_exist_for_every_runtime_profile():
     for profile in ob.RUNTIME_PROFILES.values():
         pins, header = ob.load_constraints(profile)
         assert len(pins) > 100, profile.version
         assert header["manifest_sha256"]
-        assert "protobuf" in pins and "pyspark" in pins
+        assert "protobuf" in pins
+        if profile.manifest_format == "conda-yml":
+            assert "pyspark" in pins, profile.version
+        else:
+            assert header["manifest_section"] == profile.manifest_section
+            # what the Python-notebook kernel preloads and the bundle must be resolved against
+            assert "notebookutils" in pins and "azure-core" in pins, profile.version
+    assert ob.RUNTIME_PROFILES["python-3.11"].python_version == "3.11"
+    assert ob.RUNTIME_PROFILES["2.0"].python_version == "3.13"
 
 
 def test_read_requirements_in_keeps_only_requirements(tmp_path):
@@ -80,22 +141,58 @@ def test_read_requirements_in_keeps_only_requirements(tmp_path):
         ob.read_requirements_in(path)
 
 
-def test_bundle_requirements_come_from_the_lakehouse_in_file():
-    # The laptop venv, CI and the bundle share one adapter pin.
-    expected = ob.read_requirements_in(REPO_ROOT / "requirements" / "lakehouse.in")
-    assert list(publish_dbt_bundle.SPEC.requirements) == expected
-    assert any(r.startswith("dbt-fabricspark==") for r in expected), "the adapter must be pinned exactly"
-    assert not any(r.startswith(("pytest", "pip", "azure-storage")) for r in expected), (
-        "publish-side tools belong in requirements/tools.in, not in the bundle"
-    )
+def test_bundle_requirements_come_from_the_requirements_in_files():
+    # The laptop venvs, CI and the bundles share one adapter pin per target.
+    spark = publish_dbt_bundle.SPECS["spark"]
+    assert list(spark.requirements) == ob.read_requirements_in(REPO_ROOT / "requirements" / "lakehouse.in")
+    assert any(r.startswith("dbt-fabricspark==") for r in spark.requirements), "the adapter must be pinned exactly"
+
+    python = publish_dbt_bundle.SPECS["python"]
+    adapters = {r.split("==")[0] for r in python.requirements if "==" in r}
+    assert adapters == {"dbt-fabric", "dbt-fabricspark", "dbt-sqlserver[azure]"}
+    assert sum(r.startswith("dbt-core") for r in python.requirements) == 1, "one dbt-core for all three adapters"
+    for spec in publish_dbt_bundle.SPECS.values():
+        assert not any(r.startswith(("pytest", "pip", "azure-storage")) for r in spec.requirements), (
+            "publish-side tools belong in requirements/tools.in, not in the bundle"
+        )
 
 
-def test_publish_spec_targets_a_known_runtime_and_pins_protobuf():
-    assert publish_dbt_bundle.SPEC.default_runtime in ob.RUNTIME_PROFILES
-    assert publish_dbt_bundle.CONSTRAINT_OVERRIDES["protobuf"].specifier == "==6.31.1"
-    assert all(o.reason for o in publish_dbt_bundle.CONSTRAINT_OVERRIDES.values())
-    assert publish_dbt_bundle.SPEC.first_party_dirs == [REPO_ROOT / "runner"]
+def test_publish_specs_target_known_runtimes_with_reasoned_overrides():
+    names, destinations = set(), set()
+    for key, spec in publish_dbt_bundle.SPECS.items():
+        assert spec.default_runtime in ob.RUNTIME_PROFILES, key
+        assert all(o.reason for o in spec.overrides.values()), key
+        assert spec.first_party_dirs == [REPO_ROOT / "runner"]
+        assert spec.default_destination.startswith("dbt/") and spec.consumer, key
+        names.add(spec.name)
+        destinations.add(spec.default_destination)
+    assert len(names) == len(destinations) == len(publish_dbt_bundle.SPECS), "each bundle has its own zip"
+    assert publish_dbt_bundle.SPECS["spark"].default_runtime == "2.0"
+    assert publish_dbt_bundle.SPARK_OVERRIDES["protobuf"].specifier == "==6.31.1"
+    assert publish_dbt_bundle.SPECS["python"].default_runtime == "python-3.11"
+    assert {"azure-core", "azure-identity", "pyodbc"} <= set(publish_dbt_bundle.PYTHON_OVERRIDES)
     assert (REPO_ROOT / "runner" / "pyproject.toml").is_file()
+
+
+def test_parse_args_runner_selects_spec_and_its_defaults():
+    args, spec = publish_dbt_bundle.parse_args(["--assemble-only"])
+    assert spec is publish_dbt_bundle.SPECS["spark"]
+    assert (args.runtime, args.destination) == ("2.0", "dbt/jaffle_shop.zip")
+
+    args, spec = publish_dbt_bundle.parse_args(["--runner", "python", "--assemble-only"])
+    assert spec is publish_dbt_bundle.SPECS["python"]
+    assert (args.runtime, args.destination) == ("python-3.11", "dbt/jaffle_shop_python.zip")
+    assert args.lakehouse == "LH_Jaffle_Shop"
+
+    args, _ = publish_dbt_bundle.parse_args(["--runner", "python", "--runtime", "2.0", "--destination", "x/y.zip", "--assemble-only"])
+    assert (args.runtime, args.destination) == ("2.0", "x/y.zip")  # explicit flags still win
+
+
+def test_merged_requirements_dedupes_preserving_order():
+    merged = publish_dbt_bundle.merged_requirements("warehouse", "lakehouse", "sqldb")
+    assert merged[0].startswith("dbt-core")
+    assert len(merged) == len(set(merged))
+    assert [r.split("==")[0] for r in merged[1:]] == ["dbt-fabric", "dbt-fabricspark", "dbt-sqlserver[azure]"]
 
 
 def test_collect_tree_filters_and_prefixes(tmp_path):

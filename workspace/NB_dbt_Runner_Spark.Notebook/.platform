@@ -3,7 +3,7 @@
   "metadata": {
     "type": "Notebook",
     "displayName": "NB_dbt_Runner_Spark",
-    "description": "Runs the Jaffle Shop dbt project from GitHub against LH_Jaffle_Shop inside this notebook's own Spark session (dbt-fabricspark method: session). PySpark notebook, Lakehouse only."
+    "description": "Runs the Jaffle Shop dbt project against LH_Jaffle_Shop inside this notebook's own Spark session (dbt-fabricspark method: session) from the published bundle Files/dbt/jaffle_shop.zip. PySpark notebook, Lakehouse only."
   },
   "config": {
     "version": "2.0",

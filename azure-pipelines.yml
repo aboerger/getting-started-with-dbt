@@ -4,11 +4,12 @@
 # (ci_<build id>), publishes the dbt artifacts, and drops the schema again. A failing
 # test returns a non-zero exit code, which fails the stage - nothing downstream runs.
 #
-# A second job assembles the Lakehouse bundle NB_dbt_Runner_Spark installs from
-# (tools/publish_dbt_bundle.py --assemble-only): it runs the tool tests, vendors the dbt
-# packages, resolves dbt-fabricspark against the Fabric runtime manifest and zips it -
-# without uploading. It needs no Fabric credentials; a requirement that would replace a
-# runtime package without an allow-listed reason fails here instead of in a Spark session.
+# A second job assembles the two Lakehouse bundles the runner notebooks install from
+# (tools/publish_dbt_bundle.py --assemble-only, --runner spark for NB_dbt_Runner_Spark and
+# --runner python for NB_dbt_Runner): it runs the tool tests, vendors the dbt packages,
+# resolves the adapters against each Fabric runtime's manifest and zips them - without
+# uploading. It needs no Fabric credentials; a requirement that would replace a runtime
+# package without an allow-listed reason fails here instead of in a notebook session.
 #
 # One-time setup (see docs/fabric-setup.md):
 #   * Variable group "dbt-fabric" with: DBT_WAREHOUSE_HOST, DBT_FABRIC_WORKSPACE_ID,
@@ -89,7 +90,7 @@ stages:
               BUILD_BUILDID: $(Build.BuildId)
 
       - job: bundle
-        displayName: Assemble the Lakehouse bundle (no upload)
+        displayName: Assemble the Lakehouse bundles (no upload)
         steps:
           - task: UsePythonVersion@0
             displayName: Python 3.11
@@ -105,11 +106,14 @@ stages:
           - script: python -m pytest
             displayName: Tool and runner unit tests (tools/tests, runner/tests)
 
-          - script: python tools/publish_dbt_bundle.py --assemble-only --build-version $(Build.BuildId) --out $(Build.ArtifactStagingDirectory)/bundle
-            displayName: Assemble jaffle_shop.zip against the Runtime 2.0 manifest
+          - script: python tools/publish_dbt_bundle.py --runner spark --assemble-only --build-version $(Build.BuildId) --out $(Build.ArtifactStagingDirectory)/bundle/spark
+            displayName: Assemble jaffle_shop.zip (NB_dbt_Runner_Spark) against the Runtime 2.0 manifest
+
+          - script: python tools/publish_dbt_bundle.py --runner python --assemble-only --build-version $(Build.BuildId) --out $(Build.ArtifactStagingDirectory)/bundle/python
+            displayName: Assemble jaffle_shop_python.zip (NB_dbt_Runner) against the Python-notebook manifest
 
           - task: PublishPipelineArtifact@1
-            displayName: Publish the assembled bundle (zip + deployment.json)
+            displayName: Publish the assembled bundles (zips + deployment.json)
             inputs:
               targetPath: $(Build.ArtifactStagingDirectory)/bundle
-              artifact: lakehouse-bundle-$(Build.BuildId)
+              artifact: lakehouse-bundles-$(Build.BuildId)

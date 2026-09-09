@@ -11,10 +11,2081 @@
     },
     "defaultPowerBIDataSourceVersion": "powerBI_V3",
     "sourceQueryCulture": "en-US",
+    "tables": [
+      {
+        "name": "customers",
+        "sourceLineageTag": "[jaffle_shop].[customers]",
+        "columns": [
+          {
+            "name": "customer_id",
+            "dataType": "string",
+            "sourceColumn": "customer_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "customer_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "customer_name",
+            "dataType": "string",
+            "sourceColumn": "customer_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "customer_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "count_lifetime_orders",
+            "dataType": "int64",
+            "sourceColumn": "count_lifetime_orders",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "count_lifetime_orders",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "first_ordered_at",
+            "dataType": "dateTime",
+            "sourceColumn": "first_ordered_at",
+            "formatString": "General Date",
+            "sourceProviderType": "date",
+            "sourceLineageTag": "first_ordered_at",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "last_ordered_at",
+            "dataType": "dateTime",
+            "sourceColumn": "last_ordered_at",
+            "formatString": "General Date",
+            "sourceProviderType": "date",
+            "sourceLineageTag": "last_ordered_at",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "lifetime_spend_pretax",
+            "dataType": "double",
+            "sourceColumn": "lifetime_spend_pretax",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "lifetime_spend_pretax",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "lifetime_tax_paid",
+            "dataType": "double",
+            "sourceColumn": "lifetime_tax_paid",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "lifetime_tax_paid",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "lifetime_spend",
+            "dataType": "double",
+            "sourceColumn": "lifetime_spend",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "lifetime_spend",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "customer_type",
+            "dataType": "string",
+            "sourceColumn": "customer_type",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "customer_type",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "customers",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "locations",
+        "sourceLineageTag": "[jaffle_shop].[locations]",
+        "columns": [
+          {
+            "name": "location_id",
+            "dataType": "string",
+            "sourceColumn": "location_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "location_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "location_name",
+            "dataType": "string",
+            "sourceColumn": "location_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "location_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "tax_rate",
+            "dataType": "double",
+            "sourceColumn": "tax_rate",
+            "sourceProviderType": "float",
+            "sourceLineageTag": "tax_rate",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "opened_date",
+            "dataType": "dateTime",
+            "sourceColumn": "opened_date",
+            "formatString": "General Date",
+            "sourceProviderType": "date",
+            "sourceLineageTag": "opened_date",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "locations",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "order_items",
+        "sourceLineageTag": "[jaffle_shop].[order_items]",
+        "columns": [
+          {
+            "name": "order_item_id",
+            "dataType": "string",
+            "sourceColumn": "order_item_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "order_item_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "order_id",
+            "dataType": "string",
+            "sourceColumn": "order_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "order_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "sourceColumn": "product_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "ordered_at",
+            "dataType": "dateTime",
+            "sourceColumn": "ordered_at",
+            "formatString": "General Date",
+            "sourceProviderType": "date",
+            "sourceLineageTag": "ordered_at",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_name",
+            "dataType": "string",
+            "sourceColumn": "product_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_price",
+            "dataType": "decimal",
+            "sourceColumn": "product_price",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "product_price",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_food_item",
+            "dataType": "boolean",
+            "sourceColumn": "is_food_item",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_food_item",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_drink_item",
+            "dataType": "boolean",
+            "sourceColumn": "is_drink_item",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_drink_item",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "supply_cost",
+            "dataType": "double",
+            "sourceColumn": "supply_cost",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "supply_cost",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "order_items",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "orders",
+        "sourceLineageTag": "[jaffle_shop].[orders]",
+        "columns": [
+          {
+            "name": "order_id",
+            "dataType": "string",
+            "sourceColumn": "order_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "order_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "location_id",
+            "dataType": "string",
+            "sourceColumn": "location_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "location_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "customer_id",
+            "dataType": "string",
+            "sourceColumn": "customer_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "customer_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "subtotal_cents",
+            "dataType": "int64",
+            "sourceColumn": "subtotal_cents",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "subtotal_cents",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "tax_paid_cents",
+            "dataType": "int64",
+            "sourceColumn": "tax_paid_cents",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "tax_paid_cents",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "order_total_cents",
+            "dataType": "int64",
+            "sourceColumn": "order_total_cents",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "order_total_cents",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "subtotal",
+            "dataType": "decimal",
+            "sourceColumn": "subtotal",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "subtotal",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "tax_paid",
+            "dataType": "decimal",
+            "sourceColumn": "tax_paid",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "tax_paid",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "order_total",
+            "dataType": "decimal",
+            "sourceColumn": "order_total",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "order_total",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "ordered_at",
+            "dataType": "dateTime",
+            "sourceColumn": "ordered_at",
+            "formatString": "General Date",
+            "sourceProviderType": "date",
+            "sourceLineageTag": "ordered_at",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "order_cost",
+            "dataType": "double",
+            "sourceColumn": "order_cost",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "order_cost",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "order_items_subtotal",
+            "dataType": "double",
+            "sourceColumn": "order_items_subtotal",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "order_items_subtotal",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "count_food_items",
+            "dataType": "int64",
+            "sourceColumn": "count_food_items",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "count_food_items",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "count_drink_items",
+            "dataType": "int64",
+            "sourceColumn": "count_drink_items",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "count_drink_items",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "count_order_items",
+            "dataType": "int64",
+            "sourceColumn": "count_order_items",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "count_order_items",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_food_order",
+            "dataType": "boolean",
+            "sourceColumn": "is_food_order",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_food_order",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_drink_order",
+            "dataType": "boolean",
+            "sourceColumn": "is_drink_order",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_drink_order",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "customer_order_number",
+            "dataType": "int64",
+            "sourceColumn": "customer_order_number",
+            "formatString": "0",
+            "sourceProviderType": "bigint",
+            "sourceLineageTag": "customer_order_number",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "orders",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "products",
+        "sourceLineageTag": "[jaffle_shop].[products]",
+        "columns": [
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "sourceColumn": "product_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_name",
+            "dataType": "string",
+            "sourceColumn": "product_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_type",
+            "dataType": "string",
+            "sourceColumn": "product_type",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_type",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_description",
+            "dataType": "string",
+            "sourceColumn": "product_description",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_description",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_price",
+            "dataType": "decimal",
+            "sourceColumn": "product_price",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "product_price",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_food_item",
+            "dataType": "boolean",
+            "sourceColumn": "is_food_item",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_food_item",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_drink_item",
+            "dataType": "boolean",
+            "sourceColumn": "is_drink_item",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_drink_item",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "products",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "stg_customers",
+        "sourceLineageTag": "[jaffle_shop].[stg_customers]",
+        "columns": [
+          {
+            "name": "customer_id",
+            "dataType": "string",
+            "sourceColumn": "customer_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "customer_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "customer_name",
+            "dataType": "string",
+            "sourceColumn": "customer_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "customer_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "stg_customers",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "stg_locations",
+        "sourceLineageTag": "[jaffle_shop].[stg_locations]",
+        "columns": [
+          {
+            "name": "location_id",
+            "dataType": "string",
+            "sourceColumn": "location_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "location_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "location_name",
+            "dataType": "string",
+            "sourceColumn": "location_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "location_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "tax_rate",
+            "dataType": "double",
+            "sourceColumn": "tax_rate",
+            "sourceProviderType": "float",
+            "sourceLineageTag": "tax_rate",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "opened_date",
+            "dataType": "dateTime",
+            "sourceColumn": "opened_date",
+            "formatString": "General Date",
+            "sourceProviderType": "date",
+            "sourceLineageTag": "opened_date",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "stg_locations",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "stg_order_items",
+        "sourceLineageTag": "[jaffle_shop].[stg_order_items]",
+        "columns": [
+          {
+            "name": "order_item_id",
+            "dataType": "string",
+            "sourceColumn": "order_item_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "order_item_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "order_id",
+            "dataType": "string",
+            "sourceColumn": "order_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "order_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "sourceColumn": "product_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "stg_order_items",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "stg_orders",
+        "sourceLineageTag": "[jaffle_shop].[stg_orders]",
+        "columns": [
+          {
+            "name": "order_id",
+            "dataType": "string",
+            "sourceColumn": "order_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "order_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "location_id",
+            "dataType": "string",
+            "sourceColumn": "location_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "location_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "customer_id",
+            "dataType": "string",
+            "sourceColumn": "customer_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "customer_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "subtotal_cents",
+            "dataType": "int64",
+            "sourceColumn": "subtotal_cents",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "subtotal_cents",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "tax_paid_cents",
+            "dataType": "int64",
+            "sourceColumn": "tax_paid_cents",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "tax_paid_cents",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "order_total_cents",
+            "dataType": "int64",
+            "sourceColumn": "order_total_cents",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "order_total_cents",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "subtotal",
+            "dataType": "decimal",
+            "sourceColumn": "subtotal",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "subtotal",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "tax_paid",
+            "dataType": "decimal",
+            "sourceColumn": "tax_paid",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "tax_paid",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "order_total",
+            "dataType": "decimal",
+            "sourceColumn": "order_total",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "order_total",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "ordered_at",
+            "dataType": "dateTime",
+            "sourceColumn": "ordered_at",
+            "formatString": "General Date",
+            "sourceProviderType": "date",
+            "sourceLineageTag": "ordered_at",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "stg_orders",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "stg_products",
+        "sourceLineageTag": "[jaffle_shop].[stg_products]",
+        "columns": [
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "sourceColumn": "product_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_name",
+            "dataType": "string",
+            "sourceColumn": "product_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_type",
+            "dataType": "string",
+            "sourceColumn": "product_type",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_type",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_description",
+            "dataType": "string",
+            "sourceColumn": "product_description",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_description",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_price",
+            "dataType": "decimal",
+            "sourceColumn": "product_price",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "product_price",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_food_item",
+            "dataType": "boolean",
+            "sourceColumn": "is_food_item",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_food_item",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_drink_item",
+            "dataType": "boolean",
+            "sourceColumn": "is_drink_item",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_drink_item",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "stg_products",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "stg_supplies",
+        "sourceLineageTag": "[jaffle_shop].[stg_supplies]",
+        "columns": [
+          {
+            "name": "supply_uuid",
+            "dataType": "string",
+            "sourceColumn": "supply_uuid",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "supply_uuid",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "supply_id",
+            "dataType": "string",
+            "sourceColumn": "supply_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "supply_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "sourceColumn": "product_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "supply_name",
+            "dataType": "string",
+            "sourceColumn": "supply_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "supply_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "supply_cost",
+            "dataType": "decimal",
+            "sourceColumn": "supply_cost",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "supply_cost",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_perishable_supply",
+            "dataType": "boolean",
+            "sourceColumn": "is_perishable_supply",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_perishable_supply",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "stg_supplies",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "supplies",
+        "sourceLineageTag": "[jaffle_shop].[supplies]",
+        "columns": [
+          {
+            "name": "supply_uuid",
+            "dataType": "string",
+            "sourceColumn": "supply_uuid",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "supply_uuid",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "supply_id",
+            "dataType": "string",
+            "sourceColumn": "supply_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "supply_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "sourceColumn": "product_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "product_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "supply_name",
+            "dataType": "string",
+            "sourceColumn": "supply_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "supply_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "supply_cost",
+            "dataType": "decimal",
+            "sourceColumn": "supply_cost",
+            "sourceProviderType": "numeric",
+            "sourceLineageTag": "supply_cost",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "is_perishable_supply",
+            "dataType": "boolean",
+            "sourceColumn": "is_perishable_supply",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_perishable_supply",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "supplies",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "jaffle_shop"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "raw_customers",
+        "sourceLineageTag": "[raw].[raw_customers]",
+        "columns": [
+          {
+            "name": "id",
+            "dataType": "string",
+            "sourceColumn": "id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "name",
+            "dataType": "string",
+            "sourceColumn": "name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "raw_customers",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "raw"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "raw_items",
+        "sourceLineageTag": "[raw].[raw_items]",
+        "columns": [
+          {
+            "name": "id",
+            "dataType": "string",
+            "sourceColumn": "id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "order_id",
+            "dataType": "string",
+            "sourceColumn": "order_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "order_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "sku",
+            "dataType": "string",
+            "sourceColumn": "sku",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "sku",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "raw_items",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "raw"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "raw_orders",
+        "sourceLineageTag": "[raw].[raw_orders]",
+        "columns": [
+          {
+            "name": "id",
+            "dataType": "string",
+            "sourceColumn": "id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "customer",
+            "dataType": "string",
+            "sourceColumn": "customer",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "customer",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "ordered_at",
+            "dataType": "dateTime",
+            "sourceColumn": "ordered_at",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "ordered_at",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "store_id",
+            "dataType": "string",
+            "sourceColumn": "store_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "store_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "subtotal",
+            "dataType": "int64",
+            "sourceColumn": "subtotal",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "subtotal",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "tax_paid",
+            "dataType": "int64",
+            "sourceColumn": "tax_paid",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "tax_paid",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "order_total",
+            "dataType": "int64",
+            "sourceColumn": "order_total",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "order_total",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "raw_orders",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "raw"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "raw_products",
+        "sourceLineageTag": "[raw].[raw_products]",
+        "columns": [
+          {
+            "name": "sku",
+            "dataType": "string",
+            "sourceColumn": "sku",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "sku",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "name",
+            "dataType": "string",
+            "sourceColumn": "name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "type",
+            "dataType": "string",
+            "sourceColumn": "type",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "type",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "price",
+            "dataType": "int64",
+            "sourceColumn": "price",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "price",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "description",
+            "dataType": "string",
+            "sourceColumn": "description",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "description",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "raw_products",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "raw"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "raw_stores",
+        "sourceLineageTag": "[raw].[raw_stores]",
+        "columns": [
+          {
+            "name": "id",
+            "dataType": "string",
+            "sourceColumn": "id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "name",
+            "dataType": "string",
+            "sourceColumn": "name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "opened_at",
+            "dataType": "dateTime",
+            "sourceColumn": "opened_at",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "opened_at",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "tax_rate",
+            "dataType": "double",
+            "sourceColumn": "tax_rate",
+            "sourceProviderType": "float",
+            "sourceLineageTag": "tax_rate",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "raw_stores",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "raw"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "raw_supplies",
+        "sourceLineageTag": "[raw].[raw_supplies]",
+        "columns": [
+          {
+            "name": "id",
+            "dataType": "string",
+            "sourceColumn": "id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "name",
+            "dataType": "string",
+            "sourceColumn": "name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "cost",
+            "dataType": "int64",
+            "sourceColumn": "cost",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "cost",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "perishable",
+            "dataType": "boolean",
+            "sourceColumn": "perishable",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "perishable",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "sku",
+            "dataType": "string",
+            "sourceColumn": "sku",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "sku",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "raw_supplies",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "raw"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      }
+    ],
+    "expressions": [
+      {
+        "name": "DatabaseQuery",
+        "kind": "m",
+        "expression": "let\n    database = {{TDS_Endpoint}}\nin\n    database\n"
+      }
+    ],
     "annotations": [
       {
         "name": "__PBI_TimeIntelligenceEnabled",
         "value": "0"
+      },
+      {
+        "name": "SourceLineageTagType",
+        "value": "DatabaseFullyQualifiedName"
       }
     ]
   }

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "NB_dbt_Runner",
+    "description": "Runs the Jaffle Shop dbt project from GitHub against the Warehouse, Lakehouse or SQL database. Python notebook, parameterised by target and command."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "7f3c1a52-9d4e-4b6a-8c2f-5e1d0b9a7c41"
+  }
+}

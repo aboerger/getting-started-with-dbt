@@ -1,0 +1,4 @@
+# Fabric Lakehouse target (dbt-fabricspark over the Livy API). Compile with:
+#   uv pip compile requirements/lakehouse.in -o requirements/lakehouse.txt --python-version 3.11
+dbt-core~=1.11.0
+dbt-fabricspark==1.13.4

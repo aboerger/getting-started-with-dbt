@@ -1,0 +1,80 @@
+# Azure DevOps CI for the Jaffle Shop dbt project.
+#
+# Every pull request builds and tests the whole project in its own Warehouse schema
+# (ci_<build id>), publishes the dbt artifacts, and drops the schema again. A failing
+# test returns a non-zero exit code, which fails the stage - nothing downstream runs.
+#
+# One-time setup (see docs/fabric-setup.md):
+#   * Variable group "dbt-fabric" with: DBT_WAREHOUSE_HOST, DBT_FABRIC_WORKSPACE_ID,
+#     AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET (mark the secret as secret).
+#   * The service principal is a Contributor on the Fabric workspace.
+
+trigger: none          # CI only - no build on push to main
+
+pr:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - jaffle_shop/**
+      - requirements/**
+      - azure-pipelines.yml
+
+pool:
+  vmImage: ubuntu-latest   # Fabric endpoints are public; no self-hosted agent required
+
+variables:
+  - group: dbt-fabric
+  - name: DBT_PROJECT_DIR
+    value: $(Build.SourcesDirectory)/jaffle_shop
+
+stages:
+  - stage: build_and_test
+    displayName: dbt build (isolated CI schema)
+    jobs:
+      - job: dbt
+        steps:
+          - task: UsePythonVersion@0
+            displayName: Python 3.11
+            inputs:
+              versionSpec: "3.11"
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements/warehouse.txt
+              dbt --version
+            displayName: Install pinned dbt + adapter
+
+          - script: dbt deps
+            displayName: dbt deps
+            workingDirectory: $(DBT_PROJECT_DIR)
+
+          - script: dbt build --target ci
+            displayName: dbt build --target ci  (schema ci_$(Build.BuildId))
+            workingDirectory: $(DBT_PROJECT_DIR)
+            env:
+              DBT_WAREHOUSE_HOST: $(DBT_WAREHOUSE_HOST)
+              DBT_FABRIC_WORKSPACE_ID: $(DBT_FABRIC_WORKSPACE_ID)
+              AZURE_TENANT_ID: $(AZURE_TENANT_ID)
+              AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
+              AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
+              BUILD_BUILDID: $(Build.BuildId)
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish dbt artifacts (manifest, run_results, compiled SQL)
+            condition: always()
+            inputs:
+              targetPath: $(DBT_PROJECT_DIR)/target
+              artifact: dbt-target-$(Build.BuildId)
+
+          - script: dbt run-operation drop_schema_if_exists --args "{schema_name: ci_$(Build.BuildId)}" --target ci
+            displayName: Drop CI schema
+            condition: always()
+            workingDirectory: $(DBT_PROJECT_DIR)
+            env:
+              DBT_WAREHOUSE_HOST: $(DBT_WAREHOUSE_HOST)
+              DBT_FABRIC_WORKSPACE_ID: $(DBT_FABRIC_WORKSPACE_ID)
+              AZURE_TENANT_ID: $(AZURE_TENANT_ID)
+              AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
+              AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
+              BUILD_BUILDID: $(Build.BuildId)

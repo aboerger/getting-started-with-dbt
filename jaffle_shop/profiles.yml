@@ -1,0 +1,70 @@
+# One profile, one project, three Fabric targets. No secrets live here: every
+# environment-specific value comes from an environment variable (see tools/env.example.ps1).
+#
+#   dbt build                      -> Fabric Warehouse    (dbt-fabric)
+#   dbt build --target lakehouse   -> Fabric Lakehouse    (dbt-fabricspark, Livy)
+#   dbt build --target sqldb       -> Fabric SQL database (dbt-sqlserver)
+#   dbt build --target ci          -> Warehouse, isolated schema per pipeline run, service principal
+#
+# Interactive auth on a laptop: `az login`, then the default authentication (CLI) works for all three.
+# Automation: DBT_AUTH=environment (Warehouse, SQL DB) / DBT_SPARK_AUTH=SPN (Lakehouse) plus the
+# AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET variables.
+# Fabric Python notebook: DBT_AUTH=notebookutils / DBT_SPARK_AUTH=fabric_notebook.
+jaffle_shop:
+  target: warehouse
+  outputs:
+
+    warehouse:
+      type: fabric
+      server: "{{ env_var('DBT_WAREHOUSE_HOST') }}"
+      port: 1433
+      database: "{{ env_var('DBT_WAREHOUSE_NAME', 'WH_Jaffle_Shop') }}"
+      schema: "{{ env_var('DBT_SCHEMA', 'jaffle_shop') }}"
+      authentication: "{{ env_var('DBT_AUTH', 'CLI') }}"
+      encrypt: true
+      trust_cert: false
+      threads: 4
+
+    lakehouse:
+      type: fabricspark
+      method: livy
+      endpoint: https://api.fabric.microsoft.com/v1
+      workspaceid: "{{ env_var('DBT_FABRIC_WORKSPACE_ID') }}"
+      lakehouseid: "{{ env_var('DBT_LAKEHOUSE_ID') }}"
+      lakehouse: "{{ env_var('DBT_LAKEHOUSE_NAME', 'LH_Jaffle_Shop') }}"
+      # LH_Jaffle_Shop is schema-enabled, so schema is a real schema inside the lakehouse.
+      schema: "{{ env_var('DBT_SCHEMA', 'jaffle_shop') }}"
+      authentication: "{{ env_var('DBT_SPARK_AUTH', 'CLI') }}"
+      client_id: "{{ env_var('AZURE_CLIENT_ID', '') }}"
+      tenant_id: "{{ env_var('AZURE_TENANT_ID', '') }}"
+      client_secret: "{{ env_var('AZURE_CLIENT_SECRET', '') }}"
+      spark_config:
+        name: dbt-jaffle-shop
+      reuse_session: true
+      connect_retries: 3
+      connect_timeout: 30
+      threads: 1
+
+    sqldb:
+      type: sqlserver
+      driver: "ODBC Driver 18 for SQL Server"
+      server: "{{ env_var('DBT_SQLDB_HOST') }}"
+      port: 1433
+      database: "{{ env_var('DBT_SQLDB_NAME') }}"
+      schema: "{{ env_var('DBT_SCHEMA', 'jaffle_shop') }}"
+      authentication: "{{ env_var('DBT_AUTH', 'CLI') }}"
+      encrypt: true
+      trust_cert: false
+      threads: 4
+
+    ci:
+      type: fabric
+      server: "{{ env_var('DBT_WAREHOUSE_HOST') }}"
+      port: 1433
+      database: "{{ env_var('DBT_WAREHOUSE_NAME', 'WH_Jaffle_Shop') }}"
+      # One schema per pipeline run: a green build never touches jaffle_shop.
+      schema: "ci_{{ env_var('BUILD_BUILDID', 'local') }}"
+      authentication: environment
+      encrypt: true
+      trust_cert: false
+      threads: 4

@@ -1,0 +1,4 @@
+# Fabric SQL database target (dbt-sqlserver, pyodbc + ODBC Driver 18). Compile with:
+#   uv pip compile requirements/sqldb.in -o requirements/sqldb.txt --python-version 3.11
+dbt-core~=1.11.0
+dbt-sqlserver[azure]==1.11.1

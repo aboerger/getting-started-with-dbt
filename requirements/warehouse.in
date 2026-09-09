@@ -1,0 +1,4 @@
+# Fabric Warehouse target (dbt-fabric). Compile with:
+#   uv pip compile requirements/warehouse.in -o requirements/warehouse.txt --python-version 3.11
+dbt-core~=1.11.0
+dbt-fabric==1.11.1

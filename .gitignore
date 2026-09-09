@@ -1,0 +1,17 @@
+# Python environments (one per adapter, created by tools/setup-env.ps1)
+.venv*/
+__pycache__/
+
+# dbt run output
+jaffle_shop/target/
+jaffle_shop/dbt_packages/
+jaffle_shop/logs/
+logs/
+
+# Local environment values (copy tools/env.example.ps1 to tools/env.ps1 and fill in)
+tools/env.ps1
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataBuildToolJob",
+    "displayName": "DBT_Jaffle_Shop_WH"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "d8c7e9d8-7f95-aa5a-41b8-c61bda24e98a"
+  }
+}

@@ -1,18 +1,22 @@
 {
   "project": {
-    "projectType": "OneLake",
-    "folderPath": "dbt"
+    "projectType": "GitHub",
+    "branch": "jaffle_shop",
+    "folderPath": "dbt",
+    "externalReferences": {
+      "connection": "1c1a2a0a-53f9-4a82-952e-592f2f085796"
+    }
   },
   "profile": {
-    "profileType": "DataWarehouse",
+    "profileType": "Lakehouse",
     "schema": "jaffle_shop",
     "connectionSettings": {
-      "name": "WH_Jaffle_Shop",
+      "name": "LH_Jaffle_Shop",
       "properties": {
-        "type": "DataWarehouse",
+        "type": "Lakehouse",
         "typeProperties": {
           "workspaceId": "ad51bc60-66e8-45ac-9939-c54f343f54ce",
-          "artifactId": "65a4feff-2256-4860-9ab7-abdaac01a35c",
+          "artifactId": "8d9d1ec9-6069-49a9-8f25-3278030bdd6c",
           "endPoint": "ujwmlees3dhelainntzwr6wnwm-mc6fdlpim2welgjzyvhtip2uzy.datawarehouse.fabric.microsoft.com"
         }
       }

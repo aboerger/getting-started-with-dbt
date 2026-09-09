@@ -17,26 +17,22 @@
 # MARKDOWN ********************
 
 # # Run dbt inside this notebook's Spark session
-#
-# The second runner notebook, for the **Lakehouse only**. `NB_dbt_Runner` (Python notebook) drives
+# # The second runner notebook, for the **Lakehouse only**. `NB_dbt_Runner` (Python notebook) drives
 # dbt-fabricspark over the Livy REST API, which means a separate Spark session, a ~70 s session start
 # and one HTTP round trip per statement. This notebook is a **PySpark** notebook, so a Spark session
 # already exists when the first cell runs. dbt-fabricspark's `method: session` attaches to it with
 # `SparkSession.builder.getOrCreate()` and every dbt statement becomes a plain `spark.sql(...)` call
 # on the same driver:
-#
-# | | `NB_dbt_Runner` (`lakehouse`) | `NB_dbt_Runner_Spark` (`lakehouse_session`) |
+# # | | `NB_dbt_Runner` (`lakehouse`) | `NB_dbt_Runner_Spark` (`lakehouse_session`) |
 # |---|---|---|
 # | notebook kind | Python | PySpark |
 # | connection | Livy API, its own Spark session | this notebook's Spark session |
 # | credentials | notebook identity (`fabric_notebook`) | none: the session is already authorised |
 # | profile needs | workspace id, lakehouse id, endpoint | lakehouse name and schema only |
 # | where it also runs | laptop, CI, benchmarks | Fabric Spark notebooks only (needs PySpark) |
-#
-# The Livy runner is still the one to use from a laptop and for timing comparisons; this one is
+# # The Livy runner is still the one to use from a laptop and for timing comparisons; this one is
 # what you schedule from a Data Factory pipeline when the Spark capacity is already paid for.
-#
-# The default lakehouse **must** be `LH_Jaffle_Shop`: with `method: session` the adapter cannot call
+# # The default lakehouse **must** be `LH_Jaffle_Shop`: with `method: session` the adapter cannot call
 # the Fabric REST API, so it reads `schema != lakehouse` in the profile as "schema-enabled lakehouse"
 # and renders three-part names such as `LH_Jaffle_Shop.jaffle_shop.customers` against the session's
 # default catalog.

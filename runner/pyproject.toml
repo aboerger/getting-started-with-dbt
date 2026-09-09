@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=74"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jaffle-dbt-runner"
+# Bump on behavior changes. No committed wheel: tools/publish_dbt_bundle.py
+# builds this package fresh (`pip wheel --no-deps`) into every published zip's
+# wheels/ folder, so runner, project and adapter always version together.
+version = "1.0.0"
+description = "In-notebook runner for the Jaffle Shop dbt project (NB_dbt_Runner_Spark)."
+readme = "README.md"
+# Fabric Runtime 2.0's Python; the package runs on that driver and nowhere else.
+requires-python = ">=3.11"
+authors = [{name = "Andrew Boerger"}]
+# No declared dependencies ON PURPOSE. Everything heavier than the stdlib is
+# imported lazily at call time and is guaranteed present where the package
+# actually runs: dbt-core arrives through the dbt-fabricspark pin in the same
+# wheels/ bundle that carries this wheel, and notebookutils/pyspark come from
+# the Fabric Spark runtime. Keeping this empty also keeps the unit tests
+# dependency-free.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false

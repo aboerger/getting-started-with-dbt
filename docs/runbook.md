@@ -35,6 +35,9 @@ Expected numbers were computed from the seed data and confirmed live on the Ware
 5. `tools\scenario.ps1 status` says intact; `git status` clean.
 6. Warm the Spark session: `dbt run --select stg_products --target lakehouse` ten minutes before Demo 4 (a cold Livy session takes ~70 s to start; `reuse_session: true` keeps it).
 7. Fallback recordings of Demo 4 (Spark) and Demo 5 ready to play.
+   If `NB_dbt_Runner_Spark` is on the show list, publish the bundle from the code you will show
+   (`.\.venv-tools\Scripts\Activate.ps1; python tools\publish_dbt_bundle.py --workspace <workspace>`) and run
+   the notebook once so its last run and `Files/dbt-logs` exist.
 8. Terminal font large; `.venv-warehouse` active; working directory `jaffle_shop`.
 
 ## Demo 1 · Fabric Warehouse · Build a useful mart (10:00-19:00)
@@ -160,8 +163,12 @@ rehearsal, but the adapter is not certified for it.
 - **Fabric notebook**: open `NB_dbt_Runner`, show the parameters cell and the exit value of the last run.
 - **Fabric Spark notebook**: open `NB_dbt_Runner_Spark`, the Lakehouse-only variant. Point at the
   `lakehouse_session` output in `profiles.yml` (`method: session`, no ids, no credentials) and say that dbt is
-  calling `spark.sql()` in the notebook's own session instead of going through Livy. Compare `elapsed_seconds`
-  in its exit value with the Livy runner's timing if you have both.
+  calling `spark.sql()` in the notebook's own session instead of going through Livy. Then the production
+  angle: the notebook has no GitHub or PyPI call in it. Show the bootstrap cell's output line
+  (`Bundle jaffle_shop.zip: ... commit=<sha> wheels=26 installed in Ns`), the `deployment.json` next to the zip
+  in `LH_Jaffle_Shop` Files/dbt, and the publisher's report from `python tools\publish_dbt_bundle.py`
+  (shipped / pruned / REPLACES lines). Compare `elapsed_seconds` in its exit value with the Livy runner's
+  timing if you have both.
 
 ## After the talk
 

@@ -6,75 +6,91 @@
 # META   "kernel_info": {
 # META     "name": "synapse_pyspark"
 # META   },
-# META   "dependencies": {
-# META     "lakehouse": {
-# META       "default_lakehouse_name": "LH_Jaffle_Shop",
-# META       "default_lakehouse_workspace_id": "ad51bc60-66e8-45ac-9939-c54f343f54ce"
-# META     }
-# META   }
+# META   "dependencies": {}
 # META }
 
 # MARKDOWN ********************
 
 # # Run dbt inside this notebook's Spark session
 #
-# The second runner notebook, for the **Lakehouse only**. `NB_dbt_Runner` (Python notebook) drives
-# dbt-fabricspark over the Livy REST API, which means a separate Spark session, a ~70 s session start
-# and one HTTP round trip per statement. This notebook is a **PySpark** notebook, so a Spark session
-# already exists when the first cell runs. dbt-fabricspark's `method: session` attaches to it with
+# The Lakehouse-only runner, and the way a production platform runs dbt on Fabric (this is the
+# pattern the AANA Hub's Gold layer runs on). `NB_dbt_Runner` (Python notebook) drives
+# dbt-fabricspark over the Livy REST API: a separate Spark session, a ~70 s session start and one
+# HTTP round trip per statement. This notebook is a **PySpark** notebook, so a Spark session already
+# exists when the first cell runs; dbt-fabricspark's `method: session` attaches to it with
 # `SparkSession.builder.getOrCreate()` and every dbt statement becomes a plain `spark.sql(...)` call
-# on the same driver:
+# on the same driver. Three things make it production-grade rather than a demo trick:
+#
+# 1. **Everything arrives in one published bundle.** `tools/publish_dbt_bundle.py` zips the dbt project
+#    (with `dbt_packages/` vendored), a fresh `jaffle-dbt-runner` wheel, and *only those wheels of
+#    dbt-fabricspark's dependency closure that the Fabric runtime does not already ship*, and uploads
+#    it to `Files/dbt/jaffle_shop.zip` in `LH_Jaffle_Shop`. The zip's `deployment.json` records the
+#    commit it was built from.
+# 2. **Nothing is resolved at run time.** The bootstrap cell copies the zip to the driver and installs
+#    `wheels/` offline (`pip --no-index --no-deps --target`, never `%pip`), in seconds. The publish
+#    step resolved the closure against Microsoft's manifest of the runtime's preinstalled packages, so
+#    a bundle can never silently replace a runtime package — the failure that killed sessions when
+#    plain `pip install` on the driver upgraded `protobuf` past what Runtime 2.0 tolerates.
+# 3. **The notebook has no logic.** It bootstraps the bundle and calls `jaffle_dbt_runner.run_project()`;
+#    parameter validation, argv construction, the in-process `dbtRunner` call and the dbt.log /
+#    run_results.json upload live in `runner/`, where `pytest` covers them.
 #
 # | | `NB_dbt_Runner` (`lakehouse`) | `NB_dbt_Runner_Spark` (`lakehouse_session`) |
 # |---|---|---|
 # | notebook kind | Python | PySpark |
 # | connection | Livy API, its own Spark session | this notebook's Spark session |
+# | code and dbt stack | GitHub zip + `pip install` from PyPI at run time | one published OneLake bundle, installed offline |
 # | credentials | notebook identity (`fabric_notebook`) | none: the session is already authorised |
 # | profile needs | workspace id, lakehouse id, endpoint | lakehouse name and schema only |
 # | where it also runs | laptop, CI, benchmarks | Fabric Spark notebooks only (needs PySpark) |
 #
-# The Livy runner is still the one to use from a laptop and for timing comparisons; this one is
-# what you schedule from a Data Factory pipeline when the Spark capacity is already paid for.
+# The `%%configure` cell binds `LH_Jaffle_Shop` as the default lakehouse **by name**, so the notebook
+# is correct in any workspace that holds a lakehouse of that name. With `method: session` the adapter
+# cannot call the Fabric REST API, so it reads `schema != lakehouse` in the profile as "schema-enabled
+# lakehouse" and renders three-part names such as `LH_Jaffle_Shop.jaffle_shop.customers`.
 #
-# The default lakehouse **must** be `LH_Jaffle_Shop`: with `method: session` the adapter cannot call
-# the Fabric REST API, so it reads `schema != lakehouse` in the profile as "schema-enabled lakehouse"
-# and renders three-part names such as `LH_Jaffle_Shop.jaffle_shop.customers` against the session's
-# default catalog.
+# The workspace's Spark runtime must be the one the bundle was built for (Runtime 2.0, Python 3.13 -
+# `deployment.json.wheel_python_version`); the bootstrap says so, with the fix, if it is not.
+
+# CELL ********************
+
+# MAGIC %%configure -f
+# MAGIC {
+# MAGIC     "defaultLakehouse": {
+# MAGIC         "name": "LH_Jaffle_Shop"
+# MAGIC     }
+# MAGIC }
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# #### Parameters
+# What a pipeline **Notebook activity** overrides. Strings everywhere so the same values work from a
+# pipeline (typed parameters) and from this cell (Python literals are accepted too).
 
 # PARAMETERS CELL ********************
 
-command = "build"             # build | run | test | compile | docs generate
+command = "build"             # build | run | test | seed | snapshot | compile | docs generate
 select = ""                   # optional dbt --select expression, e.g. "+customers"
+exclude = ""                  # optional dbt --exclude expression
+full_refresh = "false"        # --full-refresh (build/run/seed only)
+threads = ""                  # --threads; empty uses the profile default (4). Each thread submits Spark jobs to this session.
+load_source_data = "false"    # "true" -> run the one-time `dbt seed` of the raw tables first (slow!)
+dbt_extra_args = "[]"         # extra dbt CLI args appended verbatim, as a JSON list, e.g. '["--debug"]'
 schema = "jaffle_shop"        # target schema inside the lakehouse (must differ from the lakehouse name)
 lakehouse_name = "LH_Jaffle_Shop"
-threads = 4                   # dbt threads; each one submits Spark jobs to the shared session
-load_source_data = False      # True -> run the one-time `dbt seed` of the raw tables first (slow!)
-
-repo_owner = "aboerger"
-repo_name = "getting-started-with-dbt"
-repo_ref = "main"
-project_subdir = "jaffle_shop"
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# 1. Install dbt + dbt-fabricspark on the driver. Only the two top-level pins from requirements/lakehouse.in:
-#    the fully resolved lock file is for clean venvs and would fight the Spark runtime's preinstalled packages.
-#    PySpark itself is not installed; the runtime already provides it, which is all the session method needs.
-import subprocess, sys
-
-requirements_url = (
-    f"https://raw.githubusercontent.com/{repo_owner}/{repo_name}/{repo_ref}/requirements/lakehouse.in"
-)
-print("installing", requirements_url)
-subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "-r", requirements_url])
-subprocess.check_call([sys.executable, "-m", "dbt.cli.main", "--version"])
+# Published code bundle under the default lakehouse's Files/ (tools/publish_dbt_bundle.py)
+bundle_zip = "dbt/jaffle_shop.zip"
+# OneLake folder (under the default lakehouse) for dbt.log, run_results.json and manifest.json; blank disables
+dbt_log_path = "Files/dbt-logs"
+dbt_log_level = "info"        # cell output: debug | info | warn | error | none
+dbt_log_level_file = "debug"  # file log, uploaded to <dbt_log_path> after the run
 
 # METADATA ********************
 
@@ -83,128 +99,91 @@ subprocess.check_call([sys.executable, "-m", "dbt.cli.main", "--version"])
 # META   "language_group": "synapse_pyspark"
 # META }
 
-# CELL ********************
+# MARKDOWN ********************
 
-# 2. Fetch the project from GitHub (zip download, no git dependency)
-import io, pathlib, shutil, urllib.request, zipfile
-
-work = pathlib.Path("/tmp/dbt-jaffle-shop")
-shutil.rmtree(work, ignore_errors=True)
-work.mkdir(parents=True)
-
-zip_url = f"https://codeload.github.com/{repo_owner}/{repo_name}/zip/refs/heads/{repo_ref}"
-with urllib.request.urlopen(zip_url) as resp:
-    zipfile.ZipFile(io.BytesIO(resp.read())).extractall(work)
-
-repo_root = next(work.glob(f"{repo_name}-*"))
-project_dir = repo_root / project_subdir
-print("project:", project_dir)
-print(sorted(p.name for p in project_dir.iterdir()))
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
+# #### Bootstrap the published bundle
+# Copies the zip from the default lakehouse to the driver and hands it to the bundle's own
+# `bundle_bootstrap.py` (`tools/fabric_bundle_bootstrap.py`, shipped inside every zip): extract,
+# Python-version assert, offline `pip install --no-index --no-deps --target`, `sys.path`. Must run before
+# any first-party import.
 
 # CELL ********************
 
-# 3. Check the Spark session dbt is about to reuse, then set the two variables the
-#    `lakehouse_session` output of the repo's profiles.yml reads. No credentials, ids or endpoint:
-#    SparkSession.builder.getOrCreate() inside dbt returns this very session.
-import os
+# --- bundle bootstrap: begin ---
+import sys
+from pathlib import Path
+
 import notebookutils
 
 ctx = notebookutils.runtime.context
-default_lakehouse = ctx.get("defaultLakehouseName", "")
-if default_lakehouse != lakehouse_name:
+if ctx.get("defaultLakehouseName", "") != lakehouse_name:
     raise ValueError(
-        f"default lakehouse is {default_lakehouse!r}; attach {lakehouse_name} as the default lakehouse "
-        "so three-part names resolve against it"
+        f"default lakehouse is {ctx.get('defaultLakehouseName')!r}; the %%configure cell must bind "
+        f"{lakehouse_name} so the bundle and three-part relation names resolve against it"
     )
-if schema == lakehouse_name:
-    raise ValueError("schema must differ from the lakehouse name (schema-enabled lakehouse)")
-
-print("spark", spark.version, "| app:", spark.sparkContext.appName, "| default lakehouse:", default_lakehouse)
-print("schemas:", [r[0] for r in spark.sql(f"show schemas in {lakehouse_name}").collect()])
-
-os.environ["DBT_LAKEHOUSE_NAME"] = lakehouse_name
-os.environ["DBT_SCHEMA"] = schema
-target = "lakehouse_session"
-print("target:", target, "| schema:", schema, "| threads:", threads)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# 4. Run dbt in-process. Same dbtRunner pattern as NB_dbt_Runner; the SQL runs as spark.sql() here.
-import json, time
-from dbt.cli.main import dbtRunner
-
-common = ["--project-dir", str(project_dir), "--profiles-dir", str(project_dir), "--target", target]
-runner = dbtRunner()
-
-def run(args):
-    print("\n$ dbt", " ".join(args))
-    res = runner.invoke(args + common)
-    if res.exception:
-        raise res.exception
-    return res
-
-run(["deps"])
-if load_source_data:
-    run(["seed", "--threads", str(threads), "--vars", json.dumps({"load_source_data": True})])
-
-args = command.split() + ["--threads", str(threads)]
-if select:
-    args += ["--select", select]
-started = time.time()
-result = run(args)
-elapsed = round(time.time() - started, 1)
-
-statuses = {}
-for r in getattr(result.result, "results", []) or []:
-    statuses[str(r.status)] = statuses.get(str(r.status), 0) + 1
-print(f"\nsummary: {statuses} | success: {result.success} | {elapsed} s")
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# 5. Keep the artifacts (manifest.json, run_results.json) and hand the outcome to the caller
-run_id = time.strftime("%Y%m%d-%H%M%S")
-artifact_dir = pathlib.Path("/lakehouse/default/Files/dbt_artifacts") / target / run_id
+bundle_onelake_root = (
+    f"abfss://{ctx.get('defaultLakehouseWorkspaceId') or ctx['currentWorkspaceId']}"
+    f"@onelake.dfs.fabric.microsoft.com/{ctx['defaultLakehouseId']}"
+)
+bundle_zip_path = Path("/tmp") / Path(bundle_zip).name
 try:
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("manifest.json", "run_results.json"):
-        src = project_dir / "target" / name
-        if src.exists():
-            shutil.copy(src, artifact_dir / name)
-    print("artifacts:", artifact_dir)
-except OSError as exc:
-    print("artifacts not copied:", exc)
+    notebookutils.fs.cp(f"{bundle_onelake_root}/Files/{bundle_zip}", f"file:{bundle_zip_path}")
+except Exception as exc:
+    raise FileNotFoundError(
+        f"Could not fetch Files/{bundle_zip} from {lakehouse_name}: publish it with "
+        "`python tools/publish_dbt_bundle.py --workspace <workspace name>` (from .venv-tools)."
+    ) from exc
+# zipimport: the bootstrap module runs straight from the zip, so no code has to
+# exist on the driver before it. Dropped from sys.path again once imported.
+sys.modules.pop("bundle_bootstrap", None)
+sys.path.insert(0, str(bundle_zip_path))
+try:
+    import bundle_bootstrap
+finally:
+    sys.path.remove(str(bundle_zip_path))
+bundle = bundle_bootstrap.bootstrap(bundle_zip_path)
+project_dir = bundle.bundle_dir
+# --- bundle bootstrap: end ---
 
-outcome = {
-    "target": target,
-    "command": command,
-    "select": select,
-    "threads": threads,
-    "elapsed_seconds": elapsed,
-    "success": result.success,
-    "statuses": statuses,
-}
-notebookutils.notebook.exit(json.dumps(outcome))
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# #### Run dbt
+# One call. The runner exports `DBT_LAKEHOUSE_NAME` / `DBT_SCHEMA` for the `lakehouse_session` output
+# of the project's `profiles.yml`, runs `dbt deps` only if the bundle did not vendor `dbt_packages/`,
+# seeds first when `load_source_data` is true, and uploads dbt.log even when dbt fails. The outcome
+# JSON is the notebook's exit value, so a pipeline can branch on it.
+
+# CELL ********************
+
+import json
+
+from jaffle_dbt_runner import run_project
+
+result = run_project(
+    project_dir=project_dir,
+    onelake_root=bundle_onelake_root,
+    lakehouse_name=lakehouse_name,
+    schema=schema,
+    command=command,
+    select=select,
+    exclude=exclude,
+    full_refresh=full_refresh,
+    threads=threads,
+    load_source_data=load_source_data,
+    dbt_extra_args=dbt_extra_args,
+    dbt_log_path=dbt_log_path,
+    dbt_log_level=dbt_log_level,
+    dbt_log_level_file=dbt_log_level_file,
+)
+print(json.dumps(result, indent=2))
+notebookutils.notebook.exit(json.dumps(result))
 
 # METADATA ********************
 

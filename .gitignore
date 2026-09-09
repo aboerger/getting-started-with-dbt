@@ -15,3 +15,9 @@ tools/env.ps1
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Bundle tooling (tools/, runner/): pytest cache, wheel build output
+.pytest_cache/
+build/
+dist/
+*.egg-info/

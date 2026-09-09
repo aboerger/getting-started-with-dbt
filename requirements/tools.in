@@ -1,0 +1,10 @@
+# Publishing the Lakehouse bundle (tools/publish_dbt_bundle.py) and running the tool tests. Compile with:
+#   uv pip compile requirements/tools.in -o requirements/tools.txt --python-version 3.11
+# The bundle's *own* requirements are lakehouse.in (the publisher reads them from there and
+# resolves them for the Fabric runtime's Python); this file only adds what the publisher needs.
+-r lakehouse.in
+pip                          # the publisher resolves and downloads the runtime-side wheels with pip
+packaging                    # version comparison against the runtime manifest
+azure-storage-file-datalake  # OneLake upload (azure-identity already comes with dbt-fabricspark)
+truststore                   # trust the OS certificate store (corporate TLS-inspecting proxies) for dbt deps, manifest fetch, upload
+pytest                       # tools/tests and runner/tests

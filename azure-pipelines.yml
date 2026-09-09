@@ -4,6 +4,12 @@
 # (ci_<build id>), publishes the dbt artifacts, and drops the schema again. A failing
 # test returns a non-zero exit code, which fails the stage - nothing downstream runs.
 #
+# A second job assembles the Lakehouse bundle NB_dbt_Runner_Spark installs from
+# (tools/publish_dbt_bundle.py --assemble-only): it runs the tool tests, vendors the dbt
+# packages, resolves dbt-fabricspark against the Fabric runtime manifest and zips it -
+# without uploading. It needs no Fabric credentials; a requirement that would replace a
+# runtime package without an allow-listed reason fails here instead of in a Spark session.
+#
 # One-time setup (see docs/fabric-setup.md):
 #   * Variable group "dbt-fabric" with: DBT_WAREHOUSE_HOST, DBT_FABRIC_WORKSPACE_ID,
 #     AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET (mark the secret as secret).
@@ -18,6 +24,9 @@ pr:
     include:
       - jaffle_shop/**
       - requirements/**
+      - runner/**
+      - tools/**
+      - pytest.ini
       - azure-pipelines.yml
 
 pool:
@@ -78,3 +87,29 @@ stages:
               AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
               AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
               BUILD_BUILDID: $(Build.BuildId)
+
+      - job: bundle
+        displayName: Assemble the Lakehouse bundle (no upload)
+        steps:
+          - task: UsePythonVersion@0
+            displayName: Python 3.11
+            inputs:
+              versionSpec: "3.11"
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements/tools.txt
+              dbt --version
+            displayName: Install pinned dbt + adapter + publish tooling
+
+          - script: python -m pytest
+            displayName: Tool and runner unit tests (tools/tests, runner/tests)
+
+          - script: python tools/publish_dbt_bundle.py --assemble-only --build-version $(Build.BuildId) --out $(Build.ArtifactStagingDirectory)/bundle
+            displayName: Assemble jaffle_shop.zip against the Runtime 2.0 manifest
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish the assembled bundle (zip + deployment.json)
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/bundle
+              artifact: lakehouse-bundle-$(Build.BuildId)

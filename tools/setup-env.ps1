@@ -6,6 +6,8 @@
   .venv-warehouse  dbt-core 1.11 + dbt-fabric       (Fabric Warehouse, T-SQL, mssql-python driver)
   .venv-lakehouse  dbt-core 1.11 + dbt-fabricspark  (Fabric Lakehouse, Spark SQL over Livy)
   .venv-sqldb      dbt-core 1.11 + dbt-sqlserver    (Fabric SQL database, T-SQL, ODBC Driver 18)
+  .venv-tools      the lakehouse stack + pip, azure-storage-file-datalake, pytest: publishes the
+                   OneLake bundle NB_dbt_Runner_Spark runs (tools/publish_dbt_bundle.py) and runs the tool tests
 
   Requires uv (https://docs.astral.sh/uv/) and Python 3.11. Re-run at any time; it is idempotent.
   Pass -Target to build a single environment.
@@ -16,7 +18,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('warehouse', 'lakehouse', 'sqldb', 'all')]
+    [ValidateSet('warehouse', 'lakehouse', 'sqldb', 'tools', 'all')]
     [string]$Target = 'all'
 )
 
@@ -31,7 +33,7 @@ if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
     Write-Warning "Azure CLI (az) is not installed. The default profile authentication (CLI) needs it: winget install Microsoft.AzureCLI"
 }
 
-$targets = if ($Target -eq 'all') { @('warehouse', 'lakehouse', 'sqldb') } else { @($Target) }
+$targets = if ($Target -eq 'all') { @('warehouse', 'lakehouse', 'sqldb', 'tools') } else { @($Target) }
 
 foreach ($t in $targets) {
     $venv = ".venv-$t"

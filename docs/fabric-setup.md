@@ -13,7 +13,7 @@ The workspace `ad51bc60-66e8-45ac-9939-c54f343f54ce` is Git-connected to this re
 | `LH_Jaffle_Shop` | Lakehouse (schema-enabled) | target `lakehouse`, Demo 4 |
 | `DB_Jaffle_Shop` | SQL database | target `sqldb`, Demo 5 |
 | `NB_dbt_Runner` | Python notebook | "run dbt from a notebook" host, all three targets over Livy / SQL |
-| `NB_dbt_Runner_Spark` | PySpark notebook | Lakehouse only, dbt-fabricspark `method: session` in the notebook's own Spark session |
+| `NB_dbt_Runner_Spark` | PySpark notebook | Lakehouse only, dbt-fabricspark `method: session` in the notebook's own Spark session; code and dbt stack from the published bundle `Files/dbt/jaffle_shop.zip` in `LH_Jaffle_Shop` |
 | `DBT_Jaffle_Shop_WH` / `_LH` / `_DB` | dbt job (GitHub-sourced) | "run dbt as a Fabric job" host |
 
 Collect the connection values for `tools/env.ps1`:
@@ -124,25 +124,65 @@ pipeline can branch on.
 Authentication is the notebook identity: `notebookutils` for the Warehouse, `fabric_notebook` for
 the Lakehouse, and an access token from `notebookutils.credentials.getToken` for the SQL database.
 
-### 6b. Spark runner notebook (Lakehouse only)
+### 6b. Spark runner notebook (Lakehouse only): the published-bundle pattern
 
 `workspace/NB_dbt_Runner_Spark.Notebook` is a **PySpark** notebook that uses the `lakehouse_session`
 output of `profiles.yml` (dbt-fabricspark `method: session`). Instead of opening a Livy session over the
 REST API, dbt calls `SparkSession.builder.getOrCreate()` and gets the notebook's own session, so every
 statement runs as `spark.sql(...)` on the driver: no session start, no HTTP round trips, no credentials
-and no ids in the profile.
+and no ids in the profile. Unlike `NB_dbt_Runner`, it does **not** fetch the project from GitHub or
+`pip install` from PyPI at run time. It installs one published zip, the way the AANA Hub's Gold layer
+runs in production:
 
-- Attach `LH_Jaffle_Shop` as the **default lakehouse**; the notebook refuses to run otherwise. With no
-  REST API available the adapter infers "schema-enabled" from `schema != lakehouse` and resolves
-  three-part names (`LH_Jaffle_Shop.jaffle_shop.customers`) against the session's default catalog.
-- Parameters: `command`, `select`, `schema`, `threads` (default 4, passed as `--threads`),
-  `load_source_data`, repo coordinates. It exits with the same JSON shape as `NB_dbt_Runner` plus
-  `elapsed_seconds`, so a pipeline can compare the two.
-- The install cell pulls `requirements/lakehouse.in` (dbt-core 1.11 + dbt-fabricspark 1.13.4) rather
-  than the lock file, so pip resolves against the Spark runtime's preinstalled packages instead of
-  fighting them. PySpark is not installed; the runtime provides it.
+1. **Publish the bundle** (once per code change, from the laptop or CI/CD):
+
+   ```powershell
+   .\tools\setup-env.ps1 -Target tools                       # .venv-tools = lakehouse stack + publish tooling
+   .\.venv-tools\Scripts\Activate.ps1
+   python tools\publish_dbt_bundle.py --workspace "<workspace name or GUID>"
+   ```
+
+   Or run the VS Code task **Publish Lakehouse bundle** (Terminal -> Run Task), which prompts for the
+   workspace and uses `.venv-tools` directly. The script runs `dbt deps` so `dbt_packages/` travels in the zip, builds a fresh `jaffle-dbt-runner`
+   wheel from `runner/`, resolves `requirements/lakehouse.in` (dbt-core 1.11 + dbt-fabricspark 1.13.4)
+   for Runtime 2.0's Python 3.13 against the runtime's package manifest (`tools/runtime_constraints/`),
+   downloads only the wheels the runtime lacks, and uploads `Files/dbt/jaffle_shop.zip` plus a sidecar
+   `deployment.json` to `LH_Jaffle_Shop`. It prints what it shipped, what it pruned and which runtime
+   packages it replaces (`protobuf`, `opentelemetry-api`, `pathspec`, each with its reason). Authentication:
+   service-principal env vars if set, else `az login`, else a browser sign-in cached for later runs.
+   TLS trusts the Windows certificate store (`truststore`), so the corporate proxy needs no extra setup.
+   `--assemble-only` builds the zip without authenticating; CI does that on every PR.
+2. **Set the workspace Spark runtime to 2.0** (Workspace settings -> Data Engineering/Science -> Spark
+   settings -> Environment -> Runtime version). The bundle's wheels target that runtime's driver Python;
+   on any other runtime the bootstrap stops with a message naming the mismatch and the `--runtime` fix.
+3. **Run the notebook.** Its `%%configure` cell binds `LH_Jaffle_Shop` as the default lakehouse **by
+   name**, so no workspace GUID is stored and the notebook is correct in any workspace that has that
+   lakehouse. The bootstrap cell copies the zip to the driver and installs `wheels/` offline
+   (`pip install --no-index --no-deps --target`, never `%pip`, which would restart the interpreter and is
+   disabled in pipeline runs); the last cell calls `jaffle_dbt_runner.run_project()`.
+
+Details worth knowing:
+
+- With no REST API available the adapter infers "schema-enabled" from `schema != lakehouse` and resolves
+  three-part names (`LH_Jaffle_Shop.jaffle_shop.customers`) against the session's default catalog. The
+  runner rejects `schema == lakehouse_name` up front.
+- Parameters (strings, so a pipeline Notebook activity can set them): `command`, `select`, `exclude`,
+  `full_refresh`, `threads` (empty = the profile's 4), `load_source_data`, `dbt_extra_args` (JSON list),
+  `schema`, `lakehouse_name`, `bundle_zip`, `dbt_log_path`, `dbt_log_level`, `dbt_log_level_file`. The
+  notebook exits with a JSON outcome (`success`, `statuses`, `elapsed_seconds`, `deployed_commit`, ...).
+- `dbt.log`, `run_results.json` and `manifest.json` are uploaded to `Files/dbt-logs/` in the lakehouse
+  after every run, dbt.log even when dbt fails. A dbt failure raises, so the Notebook activity fails.
+- `deployment.json` inside the zip is the answer to "which code did that run use?": commit, publish time,
+  runtime, and the wheels shipped/pruned/replaced. The notebook prints it at start.
+- Why not `pip install` on the driver, as the notebook did before? pip re-solves against whatever the
+  runtime preinstalled and upgrades shared packages in place; dbt's `protobuf>=6` requirement lands on
+  6.33.x, which Runtime 2.0 tolerates only up to 6.31.1 - sessions built that way die at kernel start
+  with no useful error. Resolving at publish time against the vendored manifest turns that into a loud
+  publish failure unless the replacement is allow-listed with a reason.
 - The `lakehouse_session` output requires PySpark at profile-parse time, so it is unusable from the
   laptop venvs by design. Keep using `--target lakehouse` (Livy) there and for speed comparisons.
+- When Microsoft updates the runtime: `python tools\refresh_runtime_constraints.py --runtime 2.0`
+  regenerates the constraints file (the header records the manifest hash), then republish.
 
 ## 7. Laptop
 
@@ -159,3 +199,5 @@ and `DBT_SPARK_AUTH=SPN` in `tools/env.ps1` next to the `AZURE_*` values.
 Behind a TLS-inspecting corporate proxy, Python needs the corporate root CA: export the Windows
 root store to a PEM (append it to `certifi`'s bundle) and set `REQUESTS_CA_BUNDLE` to that file
 before running `dbt deps`, `dbt build --target lakehouse` (Livy API) or anything using azure-identity.
+The bundle tooling (`tools\publish_dbt_bundle.py`, `refresh_runtime_constraints.py`) does not need this: it
+trusts the operating system's certificate store through `truststore`, and pip does the same by default.

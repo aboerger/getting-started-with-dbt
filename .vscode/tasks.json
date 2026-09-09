@@ -1,0 +1,80 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Publish Lakehouse bundle",
+      "detail": "Publish the bundle NB_dbt_Runner_Spark runs (dbt project + dbt_packages, dbt-fabricspark, jaffle-dbt-runner + deps the runtime lacks) to LH_Jaffle_Shop Files/dbt/jaffle_shop.zip in the chosen workspace. Runs from .venv-tools (tools\\setup-env.ps1 -Target tools).",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe",
+      "args": [
+        "-X",
+        "utf8",
+        "tools/publish_dbt_bundle.py",
+        "--workspace",
+        "${input:fabricWorkspace}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Assemble Lakehouse bundle (no upload)",
+      "detail": "What CI does: resolve against the Runtime 2.0 manifest and build build/bundle/jaffle_shop.zip + deployment.json locally, without authenticating or uploading.",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe",
+      "args": [
+        "-X",
+        "utf8",
+        "tools/publish_dbt_bundle.py",
+        "--assemble-only",
+        "--out",
+        "build/bundle"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Tool and runner unit tests",
+      "detail": "pytest over tools/tests and runner/tests (pytest.ini). No dbt or Fabric needed.",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe",
+      "args": [
+        "-m",
+        "pytest"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Refresh Fabric runtime constraints",
+      "detail": "Regenerate tools/runtime_constraints/fabric-runtime-2.0-python313.txt from Microsoft's runtime manifest (no-op until the manifest changes). Republish the bundle afterwards.",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe",
+      "args": [
+        "-X",
+        "utf8",
+        "tools/refresh_runtime_constraints.py",
+        "--runtime",
+        "2.0"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "fabricWorkspace",
+      "type": "promptString",
+      "description": "Fabric workspace name or GUID that contains LH_Jaffle_Shop",
+      "default": "External Demos - dbt"
+    }
+  ]
+}

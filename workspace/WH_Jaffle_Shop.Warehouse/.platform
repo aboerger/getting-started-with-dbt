@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Warehouse",
+    "displayName": "WH_Jaffle_Shop",
+    "description": ""
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "ac01a35c-abda-9ab7-4860-225665a4feff"
+  }
+}

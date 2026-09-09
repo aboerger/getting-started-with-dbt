@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Lakehouse",
+    "displayName": "LH_Jaffle_Shop"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "030bdd6c-3278-8f25-49a9-60698d9d1ec9"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SQLDatabase",
+    "displayName": "DB_Jaffle_Shop"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "13427230-07b5-8b64-4e20-db86ae2739fc"
+  }
+}

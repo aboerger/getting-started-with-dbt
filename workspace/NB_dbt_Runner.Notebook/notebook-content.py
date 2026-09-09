@@ -13,32 +13,27 @@
 # MARKDOWN ********************
 
 # # Run dbt from a Fabric Python notebook
-#
-# One small **Python** notebook (no Spark) that runs the **same** Jaffle Shop project the laptop and the
+# # One small **Python** notebook (no Spark) that runs the **same** Jaffle Shop project the laptop and the
 # Azure DevOps pipeline run, against any of the three Fabric engines. The dbt process runs on this
 # notebook's single-node Python kernel; the SQL still executes in the engine you pick.
-#
-# | `target`    | adapter          | how the notebook authenticates                                        |
+# # | `target`    | adapter          | how the notebook authenticates                                        |
 # |-------------|------------------|-----------------------------------------------------------------------|
 # | `warehouse` | dbt-fabric       | `authentication: notebookutils` (token from the notebook identity)     |
 # | `lakehouse` | dbt-fabricspark  | `authentication: fabric_notebook`, its own Livy Spark session          |
 # | `sqldb`     | dbt-sqlserver    | `ActiveDirectoryAccessToken` obtained with `notebookutils.credentials.getToken` |
-#
-# Like `NB_dbt_Runner_Spark`, this notebook installs **one published bundle** from the lakehouse
+# # Like `NB_dbt_Runner_Spark`, this notebook installs **one published bundle** from the lakehouse
 # (`tools/publish_dbt_bundle.py --runner python` -> `Files/dbt/jaffle_shop_python.zip` in `LH_Jaffle_Shop`)
 # instead of pulling GitHub and PyPI at run time. The zip carries the dbt project with `dbt_packages/`
 # vendored, all three adapters, and *only those wheels the Python-notebook image does not already ship*,
 # resolved at publish time against Microsoft's manifest of the image (`tools/runtime_constraints/`).
-#
-# Why the change: the previous version of this notebook ran `pip install -r requirements/<target>.txt`
+# # Why the change: the previous version of this notebook ran `pip install -r requirements/<target>.txt`
 # on the kernel. pip upgraded azure-core on disk, but the kernel had already imported the image's
 # azure-core 1.29.4 for `notebookutils` before the first cell ran, and dbt-fabric's
 # `from azure.core.credentials import AccessTokenInfo` failed. In a Python notebook `pip` never restarts
 # the kernel. The bootstrap below installs the bundle into a private folder and **evicts the pre-imported
 # modules it shadows** from `sys.modules`, so dbt imports the bundle's azure-core; nothing in the image's
 # site-packages is touched.
-#
-# The `%%configure` cell binds `LH_Jaffle_Shop` as the default lakehouse **by name** (bundle source, log
+# # The `%%configure` cell binds `LH_Jaffle_Shop` as the default lakehouse **by name** (bundle source, log
 # destination, and the Lakehouse target's default ids). The kernel must be **Python 3.11** (notebook
 # metadata); the bundle's `deployment.json.wheel_python_version` is checked by the bootstrap, which says
 # so, with the fix, if it is not. The parameters cell is what a pipeline **Notebook activity** overrides.

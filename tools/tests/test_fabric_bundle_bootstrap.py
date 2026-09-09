@@ -132,6 +132,40 @@ def test_evict_shadowed_drops_preloaded_modules_the_bundle_replaces(tmp_path, mo
     monkeypatch.delitem(sys.modules, "jaffle_probe", raising=False)
 
 
+def test_evict_shadowed_handles_namespace_packages(tmp_path, monkeypatch):
+    """azure.* is a namespace package: the runtime's ``azure.core`` was imported at
+    kernel start, the bundle brings its own. Evicting ``azure`` before ``azure.core``
+    used to raise KeyError from the lazily recomputed namespace ``__path__``."""
+    runtime = tmp_path / "runtime_site" / "nsprobe" / "inner"
+    runtime.mkdir(parents=True)  # no nsprobe/__init__.py -> namespace package
+    (runtime / "__init__.py").write_text('WHERE = "runtime"\n', encoding="utf-8")
+    site = tmp_path / "site"
+    (site / "nsprobe" / "inner").mkdir(parents=True)
+    (site / "nsprobe" / "inner" / "__init__.py").write_text('WHERE = "bundle"\n', encoding="utf-8")
+    (site / "nsprobe_inner-1.0.dist-info").mkdir()
+    (site / "nsprobe_inner-1.0.dist-info" / "top_level.txt").write_text("nsprobe\n", encoding="utf-8")
+
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    for name in ("nsprobe", "nsprobe.inner"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    monkeypatch.syspath_prepend(str(tmp_path / "runtime_site"))
+    import nsprobe.inner  # noqa: PLC0415
+
+    assert nsprobe.inner.WHERE == "runtime"
+    assert not hasattr(sys.modules["nsprobe"], "__file__") or sys.modules["nsprobe"].__file__ is None
+
+    sys.path.insert(0, str(site))
+    evicted = fbb.evict_shadowed_modules(site)
+
+    assert evicted == ["nsprobe", "nsprobe.inner"]
+    import nsprobe.inner as fresh  # noqa: PLC0415
+
+    assert fresh.WHERE == "bundle"
+    assert fbb.evict_shadowed_modules(site) == ["nsprobe"]  # namespace root re-evicted, module kept
+    for name in ("nsprobe", "nsprobe.inner"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+
+
 def test_pruned_package_drift_compares_the_manifest_with_this_kernel(tmp_path, capsys):
     import pytest as pytest_dist  # noqa: PLC0415 — a distribution certainly installed here
 

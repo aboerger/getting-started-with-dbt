@@ -238,17 +238,18 @@ def evict_shadowed_modules(site_dir: Path) -> list[str]:
     site_prefix = os.path.normcase(str(site_dir.resolve())) + os.sep
     tops = bundled_top_level_names(site_dir)
     evicted: list[str] = []
-    for name in list(sys.modules):
+    # Children before parents: a namespace package's ``__path__`` is recomputed
+    # lazily from ``sys.modules[parent]``, so touching ``azure.core`` after
+    # ``azure`` is gone raises KeyError. Only ``__file__`` is consulted; a
+    # namespace package (no ``__file__``) is always evicted so its path list is
+    # rebuilt with the bundle's directory in front.
+    for name in sorted(sys.modules, key=lambda n: (-n.count("."), n)):
         top = name.split(".", 1)[0]
         if top not in tops:
             continue
         module = sys.modules.get(name)
-        locations = []
         module_file = getattr(module, "__file__", None)
-        if module_file:
-            locations.append(module_file)
-        locations.extend(list(getattr(module, "__path__", None) or []))
-        if locations and all(os.path.normcase(os.path.abspath(p)).startswith(site_prefix) for p in locations):
+        if module_file and os.path.normcase(os.path.abspath(module_file)).startswith(site_prefix):
             continue  # already the bundle's copy
         del sys.modules[name]
         evicted.append(name)

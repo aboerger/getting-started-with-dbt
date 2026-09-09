@@ -40,7 +40,6 @@
 # | credentials | notebook identity (`fabric_notebook`) | none: the session is already authorised |
 # | profile needs | workspace id, lakehouse id, endpoint | lakehouse name and schema only |
 # | where the target also runs | laptop, CI, benchmarks | Fabric Spark notebooks only (needs PySpark) |
-# # | where it also runs | laptop, CI, benchmarks | Fabric Spark notebooks only (needs PySpark) |
 # The `%%configure` cell binds `LH_Jaffle_Shop` as the default lakehouse **by name**, so the notebook
 # is correct in any workspace that holds a lakehouse of that name. With `method: session` the adapter
 # cannot call the Fabric REST API, so it reads `schema != lakehouse` in the profile as "schema-enabled

@@ -117,6 +117,158 @@
       "problemMatcher": []
     },
     {
+      "label": "dbt build: everything (Warehouse)",
+      "detail": "Demo 1. dbt build --target warehouse: 48 nodes (12 models + 33 data tests + 3 unit tests) in about 30 seconds. Seeds are disabled, so no raw data is reloaded. Expected tail: PASS=48 WARN=0 ERROR=0 SKIP=0. Afterwards open jaffle_shop/target/compiled/jaffle_shop/models/marts/customers.sql to show source() and ref() resolved to real table names.",
+      "type": "shell",
+      "command": "if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; Write-Host 'dbt build --target warehouse' -ForegroundColor Cyan; Write-Host ''; & './.venv-warehouse/Scripts/dbt.exe' build --target warehouse --project-dir jaffle_shop --profiles-dir jaffle_shop",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "echo": false,
+        "focus": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt build: choose engine + selection",
+      "detail": "Any build against any of the three engines: pick the engine (each uses its own virtual environment) and how much of the DAG to build. Covers Demo 5 (everything on the SQL database) and any ad-hoc build. The Lakehouse is slow - a full build is ~7.5 minutes.",
+      "type": "shell",
+      "command": "if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; Write-Host 'dbt build ${input:dbtSelection} --target ${input:dbtEngine}' -ForegroundColor Cyan; Write-Host ''; & './.venv-${input:dbtEngine}/Scripts/dbt.exe' build ${input:dbtSelection} --target ${input:dbtEngine} --project-dir jaffle_shop --profiles-dir jaffle_shop",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "echo": false,
+        "focus": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt build: stg_orders+ (Demo 2, failure expected)",
+      "detail": "Demo 2. Builds stg_orders and its 21 descendants on the Warehouse, then prints dbt's exit code in colour: green for 0, magenta for a failure. Broken (run the break task first): PASS=4 ERROR=1 SKIP=17 and exit code 1 - the reconciliation test fails on 61,465 orders and order_items/orders/customers are SKIPPED rather than built on bad numbers. Repaired: PASS=22, exit code 0. Because a failure is the expected outcome here, the task itself always exits 0 so VS Code does not flag it as broken on stage; the real code is the one printed on screen. The other build tasks do propagate their exit code, since a failure there is genuinely wrong.",
+      "type": "shell",
+      "command": "if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; Write-Host 'dbt build --select stg_orders+ --target warehouse' -ForegroundColor Cyan; Write-Host ''; & './.venv-warehouse/Scripts/dbt.exe' build --select stg_orders+ --target warehouse --project-dir jaffle_shop --profiles-dir jaffle_shop; $code = $LASTEXITCODE; Write-Host ''; if ($code -eq 0) { Write-Host ('dbt exit code: ' + $code + '  -  green build, nothing downstream was skipped') -ForegroundColor Green } else { Write-Host ('dbt exit code: ' + $code + '  -  a test failed, so a pipeline or a pull request would stop right here') -ForegroundColor Magenta }; exit 0",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "echo": false,
+        "focus": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt build: customers only (Lakehouse, ~2 min)",
+      "detail": "Demo 4. dbt build --select customers --target lakehouse: the same model file, built on Spark by dbt-fabricspark over Livy. One mart plus its 4 tests, measured at 1 min 57 s. Warm the Livy session ten minutes beforehand (a cold session takes ~70 s to start) - runbook 'Before the talk' step 6.",
+      "type": "shell",
+      "command": "if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; Write-Host 'dbt build --select customers --target lakehouse' -ForegroundColor Cyan; Write-Host ''; & './.venv-lakehouse/Scripts/dbt.exe' build --select customers --target lakehouse --project-dir jaffle_shop --profiles-dir jaffle_shop",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "echo": false,
+        "focus": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt: list nodes (choose engine + selection)",
+      "detail": "dbt ls: print the nodes a selection resolves to without building anything and without touching data. Instant, safe to run at any point, and the clearest way to show what the graph operators mean - `stg_orders+` returns stg_orders, order_items, orders, customers.",
+      "type": "shell",
+      "command": "if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; Write-Host 'dbt ls ${input:dbtSelection} --target ${input:dbtEngine}' -ForegroundColor Cyan; Write-Host ''; & './.venv-${input:dbtEngine}/Scripts/dbt.exe' ls ${input:dbtSelection} --target ${input:dbtEngine} --project-dir jaffle_shop --profiles-dir jaffle_shop",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "echo": false,
+        "focus": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Demo 2: break stg_orders (tax_paid left in cents)",
+      "detail": "tools/scenario.ps1 break - edits one line of models/staging/stg_orders.sql so tax_paid is no longer converted from cents. Show `git diff` afterwards, then run the stg_orders+ build task and watch the test fail and the downstream models get skipped.",
+      "type": "shell",
+      "command": "& './tools/scenario.ps1' break",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "echo": false,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Demo 2: reset stg_orders from Git",
+      "detail": "tools/scenario.ps1 reset - git checkout of models/staging/stg_orders.sql. It is code, so Git is the undo button. Always safe to run; `tools/scenario.ps1 status` says whether the model is currently broken.",
+      "type": "shell",
+      "command": "& './tools/scenario.ps1' reset",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "echo": false,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Publish Lakehouse bundle (Spark runner)",
       "detail": "Publish the bundle NB_dbt_Runner_Spark runs (dbt project + dbt_packages, dbt-fabricspark, jaffle-dbt-runner + deps Runtime 2.0 lacks) to LH_Jaffle_Shop Files/dbt/jaffle_shop.zip in the chosen workspace. Runs from .venv-tools (tools\\setup-env.ps1 -Target tools).",
       "type": "shell",
@@ -218,6 +370,21 @@
       "description": "Which Fabric engine? Each uses its own virtual environment and profile target.",
       "options": ["warehouse", "lakehouse", "sqldb"],
       "default": "warehouse"
+    },
+    {
+      "id": "dbtSelection",
+      "type": "pickString",
+      "description": "How much of the DAG? These are dbt's graph operators - + means 'and everything in that direction'.",
+      "options": [
+        { "label": "everything (48 nodes)", "value": "" },
+        { "label": "+customers  - customers and all its ancestors", "value": "--select +customers" },
+        { "label": "stg_orders+  - stg_orders and all its descendants", "value": "--select stg_orders+" },
+        { "label": "customers  - that one model only", "value": "--select customers" },
+        { "label": "staging  - everything in models/staging", "value": "--select staging" },
+        { "label": "marts  - everything in models/marts", "value": "--select marts" },
+        { "label": "--selector demo1  - the saved selector from selectors.yml", "value": "--selector demo1" }
+      ],
+      "default": ""
     }
   ]
 }

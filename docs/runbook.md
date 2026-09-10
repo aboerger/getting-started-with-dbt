@@ -56,6 +56,10 @@ code target\compiled\jaffle_shop\models\marts\customers.sql
 
 Expected console tail: `Done. PASS=48 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=48` in about 30 seconds (seeds are not part of the build).
 
+Without the terminal: **Run Task -> `dbt build: everything (Warehouse)`**. It prints the `dbt build` command it is
+running before the output, so the audience still reads the command. Type it by hand when the command itself is the
+teaching point; use the task when a typo mid-talk would hurt.
+
 Query in the Warehouse (or `dbt show --inline`):
 
 ```sql
@@ -100,7 +104,15 @@ dbt build --select stg_orders+       # PASS=22
 Variant if time remains: change `'returning'` to `'Returning'` in `customers.sql`; `dbt build --select customers` fails
 `accepted_values_customers_customer_type__new__returning`.
 
-Recovery: `..\tools\scenario.ps1 reset` always restores the file; `git checkout -- .` restores anything else.
+Without the terminal, the whole cycle is three tasks: **`Demo 2: break stg_orders (tax_paid left in cents)`**, then
+**`dbt build: stg_orders+ (Demo 2, failure expected)`** (which prints dbt's exit code at the end in colour - magenta 1
+when a test failed, green 0 once repaired - so the "a pipeline would stop here" point lands without typing
+`$LASTEXITCODE`), then **`Demo 2: reset stg_orders from Git`**. That task deliberately exits 0 itself even when dbt
+exits 1, so VS Code does not put a red "task failed" banner on the screen at the moment the demo is *working*; the
+honest exit code is the one printed in the terminal. Every other build task does propagate dbt's exit code.
+
+Recovery: `..\tools\scenario.ps1 reset` always restores the file; `git checkout -- .` restores anything else. Note that
+reset is a `git checkout`, so commit any real edits to `stg_orders.sql` before using it.
 
 ## Demo 3 · dbt docs · Follow the lineage (35:00-39:00)
 
@@ -129,6 +141,9 @@ it live - the Lakehouse takes minutes.
 ..\.venv-lakehouse\Scripts\Activate.ps1
 dbt build --select customers --target lakehouse     # one mart + 4 tests on Spark: ~2 min (measured 1 min 57 s)
 ```
+
+Task equivalent: **`dbt build: customers only (Lakehouse, ~2 min)`** — it uses `.venv-lakehouse` itself, so there is no
+venv to activate and no chance of running the Lakehouse build in the Warehouse environment by mistake.
 
 Do **not** run the full project live: with `threads: 4` over Livy it takes 7 min 28 s (10 min 28 s on one
 thread) because every Spark statement costs ~20 s. Run the full `dbt build --target lakehouse` before the talk so
@@ -165,6 +180,9 @@ dbt build --target sqldb
 
 Same numbers. Say out loud: dbt-sqlserver targets Azure SQL; it builds this project on the Fabric SQL database in
 rehearsal, but the adapter is not certified for it.
+
+Task equivalents: **`dbt: debug connection (choose engine)`** and **`dbt build: choose engine + selection`**, both with
+`sqldb` — the second also covers any ad-hoc build on any of the three engines.
 
 ## Other hosts (show, do not run live)
 

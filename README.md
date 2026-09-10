@@ -74,6 +74,13 @@ dbt build --target warehouse
 dbt docs generate; dbt docs serve --port 8080
 ```
 
+Builds are VS Code tasks too, for demoing without a terminal: **dbt build: everything (Warehouse)**,
+**dbt build: choose engine + selection** (pick warehouse/lakehouse/sqldb and how much of the DAG),
+**dbt build: stg_orders+ (Demo 2, failure expected)**, **dbt build: customers only (Lakehouse, ~2 min)**,
+**dbt: list nodes (choose engine + selection)** for `dbt ls`, and **Demo 2: break / reset stg_orders**. Each picks
+the right virtual environment for its target, dot-sources `tools\env.ps1`, and prints the plain `dbt` command it is
+about to run so an audience can still read it.
+
 The docs site is also a set of VS Code tasks, so it takes one click during a demo — *Terminal → Run Task →*
 **dbt docs: generate + serve (Warehouse)** (also the default build task, Ctrl+Shift+B). They dot-source
 `tools\env.ps1` for you. **dbt docs: generate (choose engine)** does the same against the Lakehouse or SQL

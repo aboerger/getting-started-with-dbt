@@ -99,7 +99,10 @@ whose copies are stale fails. What travels with the copy and what does not:
   what makes `dbt_utils` resolve - the same trick the notebook bundles use.
 - Not copied: `seeds/` (seeds are disabled in the jobs; the raw tables are loaded once, separately, and the
   CSVs are 16 MB), `profiles.yml` (Fabric generates the profile from the item's connection), `target/`,
-  `logs/`, `.user.yml`, `.gitignore`. A `GENERATED.md` in the copy says where it came from.
+  `logs/`, `.user.yml`, `.gitignore`, and anything Fabric's Git integration refuses to import: zero-byte
+  files (`analyses/.gitkeep`) and files without an extension (`dbt_utils/LICENSE`) make Source control ->
+  Update fail with "at least one invalid file in Git for the item". A `GENERATED.md` in the copy says
+  where it came from.
 
 Why not the GitHub-connected job mode: it was tried on 2026-09-10 and could not be made to run this
 project. With the project in `jaffle_shop/` every run failed with `20418: The project yaml file was not

@@ -25,9 +25,11 @@ What goes into ``Code/dbt/``:
   profile from the item's connection), ``target/``, ``logs/``, ``.user.yml``,
   ``.gitignore``;
 - ``dbt_packages/`` from ``dbt deps``, pruned to what dbt loads at run time
-  (``dbt_project.yml`` + ``macros/`` per package, plus its LICENSE): the job
-  editor says package dependencies are not supported, i.e. the runtime does not
-  run ``dbt deps`` - vendoring them is what makes ``dbt_utils`` resolve;
+  (``dbt_project.yml`` + ``macros/`` per package): the job editor says package
+  dependencies are not supported, i.e. the runtime does not run ``dbt deps`` -
+  vendoring them is what makes ``dbt_utils`` resolve;
+- nothing Fabric's Git integration rejects: zero-byte files (``.gitkeep``) and
+  files without an extension (a package's ``LICENSE``) are skipped;
 - ``GENERATED.md`` naming the source so nobody edits the copy.
 
 The item's ``dbt-content.json`` gets ``project = {projectType: OneLake,
@@ -57,7 +59,15 @@ EXCLUDED_DIRS = {"target", "logs", "seeds", "dbt_packages", "__pycache__"}
 EXCLUDED_FILES = {"profiles.yml", ".user.yml", ".gitignore"}
 # Inside each vendored package: what dbt reads at run time.
 PACKAGE_KEEP_DIRS = {"macros"}
-PACKAGE_KEEP_FILES = {"dbt_project.yml", "LICENSE", "LICENSE.md"}
+PACKAGE_KEEP_FILES = {"dbt_project.yml"}
+
+
+def fabric_accepts(path: Path) -> bool:
+    """Fabric's Git integration refuses an item update that carries a zero-byte
+    file or a file without an extension ("at least one invalid file in Git for
+    the item", 2026-09-10: `analyses/.gitkeep`, `dbt_packages/dbt_utils/LICENSE`).
+    dbt needs neither, so they stay out of the copy."""
+    return path.stat().st_size > 0 and bool(path.suffix)
 
 
 def copy_project(project_dir: Path, dest: Path) -> list[str]:
@@ -67,7 +77,7 @@ def copy_project(project_dir: Path, dest: Path) -> list[str]:
         relative = path.relative_to(project_dir)
         if any(part in EXCLUDED_DIRS for part in relative.parts):
             continue
-        if not path.is_file() or path.name in EXCLUDED_FILES:
+        if not path.is_file() or path.name in EXCLUDED_FILES or not fabric_accepts(path):
             continue
         target = dest / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -116,7 +126,7 @@ def vendor_packages(packages_dir: Path, dest: Path) -> list[str]:
             keep = (len(relative.parts) == 1 and relative.name in PACKAGE_KEEP_FILES) or (
                 relative.parts[0] in PACKAGE_KEEP_DIRS
             )
-            if not keep or not path.is_file():
+            if not keep or not path.is_file() or not fabric_accepts(path):
                 continue
             target = dest / "dbt_packages" / package.name / relative
             target.parent.mkdir(parents=True, exist_ok=True)

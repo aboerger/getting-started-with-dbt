@@ -62,13 +62,18 @@ def test_sync_writes_the_trimmed_project_and_repoints_the_items(tree, capsys):
 
     for name in ("DBT_Jaffle_Shop_WH", "DBT_Jaffle_Shop_LH"):
         item = workspace / f"{name}.DataBuildToolJob"
+        # no zero-byte files (analyses/.gitkeep) and no extensionless files (dbt_utils/LICENSE):
+        # Fabric's Git integration rejects the item update otherwise
         assert _files(item / "Code" / "dbt") == {
             "dbt_project.yml", "packages.yml", "package-lock.yml",
-            "models/marts/customers.sql", "macros/booleans.sql", "analyses/.gitkeep",
-            "dbt_packages/dbt_utils/dbt_project.yml", "dbt_packages/dbt_utils/LICENSE",
+            "models/marts/customers.sql", "macros/booleans.sql",
+            "dbt_packages/dbt_utils/dbt_project.yml",
             "dbt_packages/dbt_utils/macros/sql/star.sql",
             "GENERATED.md",
         }
+        for copied in (item / "Code" / "dbt").rglob("*"):
+            if copied.is_file():
+                assert copied.stat().st_size > 0 and copied.suffix, copied
         content = json.loads((item / "dbt-content.json").read_text(encoding="utf-8"))
         assert content["project"] == {"projectType": "OneLake", "folderPath": "dbt"}
         assert content["profile"]["schema"] == "jaffle_shop" and content["command"]["operation"] == "build"

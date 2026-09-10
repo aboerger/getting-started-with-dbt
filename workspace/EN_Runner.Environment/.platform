@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Environment",
+    "displayName": "EN_Runner",
+    "description": "Environment"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "8e416379-9d10-8eaa-4cf0-0c81de4045ca"
+  }
+}

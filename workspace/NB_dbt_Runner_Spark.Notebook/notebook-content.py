@@ -6,7 +6,12 @@
 # META   "kernel_info": {
 # META     "name": "synapse_pyspark"
 # META   },
-# META   "dependencies": {}
+# META   "dependencies": {
+# META     "environment": {
+# META       "environmentId": "8e416379-9d10-8eaa-4cf0-0c81de4045ca",
+# META       "workspaceId": "00000000-0000-0000-0000-000000000000"
+# META     }
+# META   }
 # META }
 
 # MARKDOWN ********************
@@ -76,7 +81,7 @@ command = "build"             # build | run | test | seed | snapshot | compile |
 select = ""                   # optional dbt --select expression, e.g. "+customers"
 exclude = ""                  # optional dbt --exclude expression
 full_refresh = "false"        # --full-refresh (build/run/seed only)
-threads = ""                  # --threads; empty uses the profile default (4). Each thread submits Spark jobs to this session.
+threads = "10"                  # --threads; empty uses the profile default (4). Each thread submits Spark jobs to this session.
 load_source_data = "false"    # "true" -> run the one-time `dbt seed` of the raw tables first (slow!)
 dbt_extra_args = "[]"         # extra dbt CLI args appended verbatim, as a JSON list, e.g. '["--debug"]'
 schema = "jaffle_shop"        # target schema inside the lakehouse (must differ from the lakehouse name)

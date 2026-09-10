@@ -158,7 +158,8 @@ rehearsal, but the adapter is not certified for it.
 
 - **Azure DevOps**: open the last pull-request pipeline run; point at the `ci_<id>` schema name in the log, the
   published artifact, and the "Drop CI schema" step.
-- **Fabric dbt job**: open `DBT_Jaffle_Shop_WH`, show the GitHub source, the Output tab of the last run and the
+- **Fabric dbt job**: open `DBT_Jaffle_Shop_WH`, show the project files (the `GENERATED.md` says they are a copy of
+  `jaffle_shop/` made by `tools/sync_fabric_dbt_jobs.py`, checked in CI), the Output tab of the last run and the
   Lineage view.
 - **Fabric Python notebook**: open `NB_dbt_Runner`, show the parameters cell (`target` switches engine, nothing else
   changes), the bootstrap cell's output (`Bundle jaffle_shop_python.zip: ... wheels=29`, `Evicted ... azure`) and the

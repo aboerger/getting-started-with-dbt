@@ -1,0 +1,15 @@
+models:
+  - name: locations
+    description: |
+      Location dimension table. The grain of the table is one row per location.
+    columns:
+      - name: location_id
+        description: The unique key of each location.
+        data_tests:
+          - not_null
+          - unique
+      - name: location_name
+      - name: tax_rate
+        description: Sales tax rate applied at this location.
+      - name: opened_date
+        description: The day the location opened.

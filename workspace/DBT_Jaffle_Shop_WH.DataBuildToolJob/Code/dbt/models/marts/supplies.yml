@@ -1,0 +1,16 @@
+models:
+  - name: supplies
+    description: |
+      Supplies dimension table. The grain of the table is one row per supply and product combination.
+    columns:
+      - name: supply_uuid
+        description: Surrogate key of supply and product.
+        data_tests:
+          - not_null
+          - unique
+      - name: supply_id
+      - name: product_id
+      - name: supply_name
+      - name: supply_cost
+        description: Cost of the supply in USD.
+      - name: is_perishable_supply

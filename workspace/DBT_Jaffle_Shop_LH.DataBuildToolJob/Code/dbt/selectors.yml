@@ -1,0 +1,7 @@
+selectors:
+  - name: demo1
+    description: "Demo 1 - the customers mart and everything it depends on"
+    definition: "+customers"
+  - name: demo2
+    description: "Demo 2 - stg_orders and everything downstream of it"
+    definition: "stg_orders+"

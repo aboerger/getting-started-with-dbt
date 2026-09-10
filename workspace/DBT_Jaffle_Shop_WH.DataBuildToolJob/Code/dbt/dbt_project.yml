@@ -1,0 +1,71 @@
+config-version: 2
+
+name: "jaffle_shop"
+version: "3.0.0"
+# The Fabric dbt job runtime v1.0 ships dbt Core 1.11; the laptop, CI and notebook pin 1.11 too.
+require-dbt-version: [">=1.10.0", "<2.0.0"]
+
+profile: jaffle_shop
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["data-tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Seeds stand in for the ingestion layer. They are disabled by default so that
+# `dbt build` never re-loads ~150k raw rows; load them once per target with
+#   dbt seed --vars '{"load_source_data": true}' --target <warehouse|lakehouse|sqldb>
+# Models read the loaded tables through source('ecom', ...) in models/staging/__sources.yml.
+seeds:
+  jaffle_shop:
+    +schema: raw
+    jaffle-data:
+      +enabled: "{{ var('load_source_data', false) }}"
+      raw_customers:
+        +column_types:
+          id: "{{ 'string' if target.type == 'fabricspark' else 'varchar(36)' }}"
+          name: "{{ 'string' if target.type == 'fabricspark' else 'varchar(100)' }}"
+      raw_orders:
+        +column_types:
+          id: "{{ 'string' if target.type == 'fabricspark' else 'varchar(36)' }}"
+          customer: "{{ 'string' if target.type == 'fabricspark' else 'varchar(36)' }}"
+          store_id: "{{ 'string' if target.type == 'fabricspark' else 'varchar(36)' }}"
+          ordered_at: "{{ 'timestamp' if target.type == 'fabricspark' else 'datetime2(6)' }}"
+      raw_items:
+        +column_types:
+          id: "{{ 'string' if target.type == 'fabricspark' else 'varchar(36)' }}"
+          order_id: "{{ 'string' if target.type == 'fabricspark' else 'varchar(36)' }}"
+          sku: "{{ 'string' if target.type == 'fabricspark' else 'varchar(10)' }}"
+      raw_products:
+        +column_types:
+          sku: "{{ 'string' if target.type == 'fabricspark' else 'varchar(10)' }}"
+          name: "{{ 'string' if target.type == 'fabricspark' else 'varchar(100)' }}"
+          type: "{{ 'string' if target.type == 'fabricspark' else 'varchar(20)' }}"
+          description: "{{ 'string' if target.type == 'fabricspark' else 'varchar(200)' }}"
+      raw_stores:
+        +column_types:
+          id: "{{ 'string' if target.type == 'fabricspark' else 'varchar(36)' }}"
+          name: "{{ 'string' if target.type == 'fabricspark' else 'varchar(50)' }}"
+          opened_at: "{{ 'timestamp' if target.type == 'fabricspark' else 'datetime2(6)' }}"
+      raw_supplies:
+        +column_types:
+          id: "{{ 'string' if target.type == 'fabricspark' else 'varchar(10)' }}"
+          name: "{{ 'string' if target.type == 'fabricspark' else 'varchar(100)' }}"
+          sku: "{{ 'string' if target.type == 'fabricspark' else 'varchar(10)' }}"
+
+models:
+  jaffle_shop:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
+
+flags:
+  require_generic_test_arguments_property: true

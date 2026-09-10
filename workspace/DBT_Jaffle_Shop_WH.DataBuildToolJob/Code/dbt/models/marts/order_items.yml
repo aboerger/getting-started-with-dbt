@@ -1,0 +1,56 @@
+models:
+  - name: order_items
+    description: |
+      Items contained in each order. The grain of the table is one row per order item.
+    columns:
+      - name: order_item_id
+        description: The unique key of the order items mart.
+        data_tests:
+          - not_null
+          - unique
+      - name: order_id
+        description: The order this item belongs to.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('orders')
+                field: order_id
+      - name: product_id
+        description: The product (SKU) that was ordered.
+      - name: ordered_at
+        description: The day the parent order was placed.
+      - name: is_food_item
+        description: A boolean indicating if the item is a jaffle.
+      - name: is_drink_item
+        description: A boolean indicating if the item is a beverage.
+      - name: supply_cost
+        description: The sum of supply costs for this product, in USD.
+
+unit_tests:
+  - name: test_supply_costs_sum_correctly
+    description: "Test that supply costs are summed per product before joining to order items."
+    model: order_items
+    given:
+      - input: ref('stg_supplies')
+        rows:
+          - {product_id: 1, supply_cost: 4.50}
+          - {product_id: 2, supply_cost: 3.50}
+          - {product_id: 2, supply_cost: 5.00}
+      - input: ref('stg_products')
+        rows:
+          - {product_id: 1}
+          - {product_id: 2}
+      - input: ref('stg_order_items')
+        rows:
+          - {order_id: 1, product_id: 1}
+          - {order_id: 2, product_id: 2}
+          - {order_id: 2, product_id: 2}
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: 1}
+          - {order_id: 2}
+    expect:
+      rows:
+        - {order_id: 1, product_id: 1, supply_cost: 4.50}
+        - {order_id: 2, product_id: 2, supply_cost: 8.50}
+        - {order_id: 2, product_id: 2, supply_cost: 8.50}

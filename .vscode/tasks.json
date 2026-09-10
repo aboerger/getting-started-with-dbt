@@ -50,6 +50,21 @@
       "problemMatcher": []
     },
     {
+      "label": "Sync dbt project into Fabric dbt job items",
+      "detail": "Copy jaffle_shop/ (minus seeds and profiles.yml, plus trimmed dbt_packages from dbt deps) into workspace/DBT_*.DataBuildToolJob/Code/dbt and point the items at it. Commit, push, then Source control -> Update in the workspace.",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv-tools/Scripts/python.exe",
+      "args": [
+        "-X",
+        "utf8",
+        "tools/sync_fabric_dbt_jobs.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Tool and runner unit tests",
       "detail": "pytest over tools/tests and runner/tests (pytest.ini). No dbt or Fabric needed.",
       "type": "shell",

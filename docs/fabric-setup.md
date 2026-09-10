@@ -14,7 +14,7 @@ The workspace `ad51bc60-66e8-45ac-9939-c54f343f54ce` is Git-connected to this re
 | `DB_Jaffle_Shop` | SQL database | target `sqldb`, Demo 5 |
 | `NB_dbt_Runner` | Python notebook (3.11 kernel) | "run dbt from a notebook" host, all three targets (Warehouse over TDS, Lakehouse over Livy, SQL database); code and dbt stack from the published bundle `Files/dbt/jaffle_shop_python.zip` in `LH_Jaffle_Shop` |
 | `NB_dbt_Runner_Spark` | PySpark notebook | Lakehouse only, dbt-fabricspark `method: session` in the notebook's own Spark session; code and dbt stack from the published bundle `Files/dbt/jaffle_shop.zip` in `LH_Jaffle_Shop` |
-| `DBT_Jaffle_Shop_WH` / `_LH` / `_DB` | dbt job (GitHub-sourced) | "run dbt as a Fabric job" host |
+| `DBT_Jaffle_Shop_WH` / `_LH` / `_DB` | dbt job (project synced into the item by `tools/sync_fabric_dbt_jobs.py`) | "run dbt as a Fabric job" host |
 
 Collect the connection values for `tools/env.ps1`:
 
@@ -86,35 +86,32 @@ dbt build --target ci                                 # builds into WH_Jaffle_Sh
 dbt run-operation drop_schema_if_exists --args "{schema_name: ci_local}" --target ci
 ```
 
-## 5. Fabric dbt jobs from the GitHub repository
+## 5. Fabric dbt jobs: the project synced into the items
 
-The job pulls the project from GitHub on every run, so the code exists once (in `jaffle_shop/`). The job
-reads `dbt_project.yml` from the **root** of the branch it is connected to, and the project is not at the
-root of this repository, so the jobs point at the generated branch **`fabric-dbt-job`**: a root-level
-snapshot of `jaffle_shop/` with `dbt_packages/` vendored, rebuilt by `tools/sync_fabric_dbt_branch.py`
-(the GitHub Actions workflow `.github/workflows/sync-fabric-dbt-branch.yml` runs it on every push to `main`
-that touches the project; `python tools\sync_fabric_dbt_branch.py --push` from `.venv-tools` does it by
-hand). Nothing is edited on that branch. Repeat the steps below for the three targets.
+The dbt job items `DBT_Jaffle_Shop_WH` / `_LH` (and `_DB`) run the project as their **own code**
+(`projectType: OneLake`, the mode a new dbt job starts in). The code still exists once, in `jaffle_shop/`:
+`tools/sync_fabric_dbt_jobs.py` copies it into each item's `Code/dbt/` folder under `workspace/`, Fabric's
+Git integration carries that folder into the item, and CI runs the script with `--check`, so a pull request
+whose copies are stale fails. What travels with the copy and what does not:
 
-1. Create a **classic** GitHub personal access token with `repo` scope (fine-grained tokens are not
-   accepted at the time of writing).
-2. Workspace -> **+ New item** -> **dbt job** -> name `DBT_Jaffle_Shop_WH` -> **Connect to a GitHub project**
-   -> *GitHub - Source Control* -> repository `https://github.com/aboerger/getting-started-with-dbt`,
-   connection name `github-getting-started-with-dbt`, paste the PAT.
-3. Branch **`fabric-dbt-job`** (push it first with the sync script if it does not exist yet). The wizard
-   offers no project-path field: a branch whose root has no `dbt_project.yml` fails every run with
-   `errorCode 20418: The project yaml file was not found in the dbt project`. The `project.folderPath`
-   value in the synced definition (`workspace/DBT_Jaffle_Shop_*.DataBuildToolJob/dbt-content.json`) is
-   the wizard's default `dbt`; setting it to `jaffle_shop` on `main` was verified through the REST API to
-   change nothing (2026-09-10), so leave it alone.
-   Packages: the job editor warns that package dependencies are not yet supported, which is why the
-   snapshot branch carries `dbt_packages/` already resolved (no `dbt deps` at run time). The two runner
-   notebooks are unaffected: their bundles vendor `dbt_packages/` the same way.
-   File size: the job fetches the project file by file through GitHub's contents API, which returns no
-   content for files over 1 MB; a branch that carries the 7-9 MB seed CSVs fails with
-   `errorCode 20407: Failed to download dbt project from GitHub repository`. The snapshot therefore leaves
-   out every file above 1 MB and lists them in its README (seeds are disabled in the jobs anyway).
-4. Adapter and connection:
+- `dbt_packages/` from `dbt deps`, trimmed to `dbt_project.yml` + `macros/` per package. The job editor
+  says package dependencies are not supported (the runtime does not run `dbt deps`), so vendoring them is
+  what makes `dbt_utils` resolve - the same trick the notebook bundles use.
+- Not copied: `seeds/` (seeds are disabled in the jobs; the raw tables are loaded once, separately, and the
+  CSVs are 16 MB), `profiles.yml` (Fabric generates the profile from the item's connection), `target/`,
+  `logs/`, `.user.yml`, `.gitignore`. A `GENERATED.md` in the copy says where it came from.
+
+Why not the GitHub-connected job mode: it was tried on 2026-09-10 and could not be made to run this
+project. With the project in `jaffle_shop/` every run failed with `20418: The project yaml file was not
+found in the dbt project` (the wizard has no project-path field; the `folderPath` in the item definition
+was verified through the REST API to change nothing), and with a generated branch that had the project at
+the root, with or without the large seeds, it failed with `20407: Failed to download dbt project from
+GitHub repository`, with no log of what it choked on. The item-owned project is the mode the sample job
+ships in and it ran here before.
+
+1. Workspace -> **+ New item** -> **dbt job** -> name `DBT_Jaffle_Shop_WH`. Do **not** connect a GitHub
+   project; the empty project is fine, the sync fills it.
+2. Adapter and connection:
 
    | Job | Adapter | Connection | Schema | Notes |
    | --- | --- | --- | --- | --- |
@@ -122,9 +119,16 @@ hand). Nothing is edited on that branch. Repeat the steps below for the three ta
    | `DBT_Jaffle_Shop_LH` | Fabric Lakehouse | `LH_Jaffle_Shop` | `jaffle_shop` | seed data **off** |
    | `DBT_Jaffle_Shop_DB` | Azure SQL Database | server + database of `DB_Jaffle_Shop`, service principal from step 3 | `jaffle_shop` | evaluation path, not certified |
 
-5. Command **build**, threads 4. Save, **Run**, check the Output and Lineage tabs.
-6. Workspace -> Source control -> **Commit** so the item definitions land in `workspace/`, then pull
-   this repository.
+3. Command **build**, threads 4. Save. Workspace -> Source control -> **Commit**, so the item definition
+   (`workspace/DBT_Jaffle_Shop_WH.DataBuildToolJob/dbt-content.json` + `.platform`) lands in this
+   repository; pull it.
+4. From `.venv-tools`: `python tools\sync_fabric_dbt_jobs.py` (or the VS Code task **Sync dbt project into
+   Fabric dbt job items**). It rewrites `Code/dbt/` in every `workspace/DBT_*.DataBuildToolJob` and sets the
+   item's project to `OneLake` / `dbt`. Commit, push, then Workspace -> Source control -> **Update**.
+5. **Run** the job; check the Output and Lineage tabs.
+6. After every change to `jaffle_shop/`: run the sync again and commit the copies (CI reminds you when
+   they are stale). The dbt job runtime's adapters are older than the laptop's (dbt-fabric 1.10.0,
+   dbt-fabricspark 1.12.2, dbt-sqlserver 1.9.1 on dbt Core 1.11), which is fine for this project.
 
 Seeds are disabled in `dbt_project.yml` unless `load_source_data` is set, so leaving the job's
 *Seed data* option off is belt and braces: `dbt build` inside Fabric never reloads the raw tables.

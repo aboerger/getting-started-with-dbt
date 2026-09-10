@@ -27,6 +27,7 @@ pr:
       - requirements/**
       - runner/**
       - tools/**
+      - workspace/DBT_*/**
       - pytest.ini
       - azure-pipelines.yml
 
@@ -105,6 +106,9 @@ stages:
 
           - script: python -m pytest
             displayName: Tool and runner unit tests (tools/tests, runner/tests)
+
+          - script: python tools/sync_fabric_dbt_jobs.py --check
+            displayName: Fabric dbt job items carry the current project (tools/sync_fabric_dbt_jobs.py --check)
 
           - script: python tools/publish_dbt_bundle.py --runner spark --assemble-only --build-version $(Build.BuildId) --out $(Build.ArtifactStagingDirectory)/bundle/spark
             displayName: Assemble jaffle_shop.zip (NB_dbt_Runner_Spark) against the Runtime 2.0 manifest

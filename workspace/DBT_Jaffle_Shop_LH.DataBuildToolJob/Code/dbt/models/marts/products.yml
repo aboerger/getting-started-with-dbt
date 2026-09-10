@@ -1,0 +1,18 @@
+models:
+  - name: products
+    description: |
+      Product dimension table. The grain of the table is one row per product.
+    columns:
+      - name: product_id
+        description: The unique key (SKU) of each product.
+        data_tests:
+          - not_null
+          - unique
+      - name: product_name
+      - name: product_type
+        description: Either 'jaffle' or 'beverage'.
+      - name: product_description
+      - name: is_food_item
+      - name: is_drink_item
+      - name: product_price
+        description: List price in USD.

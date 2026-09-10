@@ -32,6 +32,12 @@ Expected numbers were computed from the seed data and confirmed live on the Ware
 3. `dbt build` green on all three targets (`--target warehouse`, `lakehouse`, `sqldb`). Measured: Warehouse ~30 s,
    SQL database ~40 s, Lakehouse 10 min 28 s on one thread (see Demo 4 for the multi-thread timing).
 4. `dbt docs generate` then `dbt docs serve --port 8080` in a spare terminal; leave the browser tab open on `customers`.
+   One click instead: **Terminal -> Run Task -> `dbt docs: generate + serve (Warehouse)`** (it is also the default build
+   task, so Ctrl+Shift+B runs it). The task dot-sources `tools\env.ps1` itself and opens the browser tab. Once generated,
+   the server needs no connection, so it survives an expired `az login` for the rest of the talk.
+   Also run **`dbt docs: generate standalone HTML (demo fallback)`** now: it writes
+   `jaffle_shop\target\static_index.html`, a single self-contained file with the full lineage graph that opens with no
+   server and no network if anything goes wrong live.
 5. `tools\scenario.ps1 status` says intact; `git status` clean.
 6. Warm the Spark session: `dbt run --select stg_products --target lakehouse` ten minutes before Demo 4 (a cold Livy session takes ~70 s to start; `reuse_session: true` keeps it).
 7. Fallback recordings of Demo 4 (Spark) and Demo 5 ready to play.
@@ -108,8 +114,14 @@ dbt ls --select stg_orders+ --resource-type model
 
 Second command returns `stg_orders`, `order_items`, `orders`, `customers`.
 
-Recovery: if docs are not generated, `dbt docs generate` takes about 30 seconds on the Warehouse; otherwise talk over
+Recovery: if docs are not generated, `dbt docs generate` takes about 30 seconds on the Warehouse (task: *dbt docs:
+generate + serve (Warehouse)*). If the server or the connection is the problem, open the standalone file instead - task
+*dbt docs: open the standalone HTML* - which is the same site with no server and no network. Failing both, talk over
 the static lineage view in the Fabric dbt job item.
+
+To make the point that the docs are per-engine, the task *dbt docs: generate (choose engine)* regenerates them against
+the Lakehouse or the SQL database; each model page then shows that engine's compiled SQL and column types. Do not run
+it live - the Lakehouse takes minutes.
 
 ## Demo 4 · Fabric Lakehouse (Spark) · Change the engine (44:00-49:00)
 

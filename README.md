@@ -74,6 +74,14 @@ dbt build --target warehouse
 dbt docs generate; dbt docs serve --port 8080
 ```
 
+The docs site is also a set of VS Code tasks, so it takes one click during a demo — *Terminal → Run Task →*
+**dbt docs: generate + serve (Warehouse)** (also the default build task, Ctrl+Shift+B). They dot-source
+`tools\env.ps1` for you. **dbt docs: generate (choose engine)** does the same against the Lakehouse or SQL
+database, **dbt docs: generate standalone HTML (demo fallback)** writes a single self-contained
+`target\static_index.html` that needs no server or network, and **dbt: debug connection (choose engine)** is
+the first thing to run when something fails. Generating queries the engine and needs `az login`; serving does
+not connect at all, so a served site outlives the token.
+
 Switch engine by switching venv and target: `.\.venv-lakehouse\Scripts\Activate.ps1` then
 `dbt build --target lakehouse`; `.\.venv-sqldb\Scripts\Activate.ps1` then `dbt build --target sqldb`.
 The model files do not change.

@@ -2,6 +2,121 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "dbt docs: generate + serve (Warehouse)",
+      "detail": "The one-click Demo 3 setup: generate the docs site against the Warehouse (~30 s, needs `az login`), then serve it on http://localhost:8080 and open a browser tab. Leave it running; the server keeps working even if the Azure token later expires.",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "dbt docs: generate (Warehouse)",
+        "dbt docs: serve on :8080"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt docs: generate (Warehouse)",
+      "detail": "dbt docs generate --target warehouse, writing manifest.json + catalog.json + index.html into jaffle_shop/target. Queries the Warehouse for every column's type, so it needs `az login` and takes about 30 seconds. Same command the runbook uses; the task just dot-sources tools/env.ps1 first.",
+      "type": "shell",
+      "command": "if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; & './.venv-warehouse/Scripts/dbt.exe' docs generate --target warehouse --project-dir jaffle_shop --profiles-dir jaffle_shop",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt docs: serve on :8080",
+      "detail": "Serve the docs already generated in jaffle_shop/target at http://localhost:8080 and open a browser tab. Serves files from disk: it still parses the project (so tools/env.ps1 is dot-sourced for the profile's environment variables) but never opens a connection, so it keeps working even after the `az login` token expires. Runs until you terminate the task.",
+      "type": "shell",
+      "isBackground": true,
+      "command": "if (-not (Test-Path './jaffle_shop/target/index.html')) { Write-Host 'No docs have been generated yet. Run the task \"dbt docs: generate + serve (Warehouse)\" instead.' -ForegroundColor Yellow; exit 1 }; if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; & './.venv-warehouse/Scripts/dbt.exe' docs serve --port 8080 --project-dir jaffle_shop --profiles-dir jaffle_shop",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": {
+        "pattern": [
+          {
+            "regexp": "^(.*)$",
+            "file": 1
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Serving docs at.*",
+          "endsPattern": ".*Press Ctrl\\+C to exit.*"
+        }
+      }
+    },
+    {
+      "label": "dbt docs: generate (choose engine)",
+      "detail": "Same as the Warehouse task but for any of the three engines - each target uses its own virtual environment (.venv-warehouse / .venv-lakehouse / .venv-sqldb). Use it to show that the docs site is engine-specific: the compiled SQL and column types on each model page come from whichever engine generated them. The Lakehouse takes several minutes.",
+      "type": "shell",
+      "command": "if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; & './.venv-${input:dbtEngine}/Scripts/dbt.exe' docs generate --target ${input:dbtEngine} --project-dir jaffle_shop --profiles-dir jaffle_shop",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt docs: generate standalone HTML (demo fallback)",
+      "detail": "Generate the docs as one self-contained file, jaffle_shop/target/static_index.html, and open it in the default browser. No web server and no connection to view it, so it is the safe fallback to prepare the evening before: if anything fails live, this file still has the full lineage graph. Generating it does need `az login`.",
+      "type": "shell",
+      "command": "if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; & './.venv-warehouse/Scripts/dbt.exe' docs generate --static --target warehouse --project-dir jaffle_shop --profiles-dir jaffle_shop; if ($LASTEXITCODE -eq 0) { Start-Process './jaffle_shop/target/static_index.html' }",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt docs: open the standalone HTML",
+      "detail": "Open the already-generated jaffle_shop/target/static_index.html in the default browser. Nothing is regenerated, nothing is connected to - this works with no network at all.",
+      "type": "shell",
+      "command": "if (Test-Path './jaffle_shop/target/static_index.html') { Start-Process './jaffle_shop/target/static_index.html' } else { Write-Host 'Not generated yet - run the task \"dbt docs: generate standalone HTML (demo fallback)\" first.' -ForegroundColor Yellow }",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt: debug connection (choose engine)",
+      "detail": "dbt debug against one engine: checks profiles.yml, the environment variables from tools/env.ps1, and opens a connection. The first thing to run if a docs generate or build fails - an expired `az login` shows up here in two seconds.",
+      "type": "shell",
+      "command": "if (Test-Path './tools/env.ps1') { . './tools/env.ps1' } else { Write-Host 'tools/env.ps1 not found - copy tools/env.example.ps1 to tools/env.ps1 and fill it in.' -ForegroundColor Yellow }; & './.venv-${input:dbtEngine}/Scripts/dbt.exe' debug --target ${input:dbtEngine} --project-dir jaffle_shop --profiles-dir jaffle_shop",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "pwsh.exe",
+          "args": ["-NoProfile", "-Command"]
+        }
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Publish Lakehouse bundle (Spark runner)",
       "detail": "Publish the bundle NB_dbt_Runner_Spark runs (dbt project + dbt_packages, dbt-fabricspark, jaffle-dbt-runner + deps Runtime 2.0 lacks) to LH_Jaffle_Shop Files/dbt/jaffle_shop.zip in the chosen workspace. Runs from .venv-tools (tools\\setup-env.ps1 -Target tools).",
       "type": "shell",
@@ -96,6 +211,13 @@
       "type": "promptString",
       "description": "Fabric workspace name or GUID that contains LH_Jaffle_Shop",
       "default": "External Demos - dbt"
+    },
+    {
+      "id": "dbtEngine",
+      "type": "pickString",
+      "description": "Which Fabric engine? Each uses its own virtual environment and profile target.",
+      "options": ["warehouse", "lakehouse", "sqldb"],
+      "default": "warehouse"
     }
   ]
 }

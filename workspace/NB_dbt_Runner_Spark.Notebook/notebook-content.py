@@ -179,7 +179,6 @@ result = run_project(
     dbt_log_level_file=dbt_log_level_file,
 )
 print(json.dumps(result, indent=2))
-notebookutils.notebook.exit(json.dumps(result))
 
 # METADATA ********************
 

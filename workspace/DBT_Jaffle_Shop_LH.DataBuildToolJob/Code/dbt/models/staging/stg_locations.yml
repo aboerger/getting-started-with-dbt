@@ -1,3 +1,8 @@
+# stg_locations - the model that carries this project's unit test.
+#
+# New idea in this file: a unit test. Everything above `unit_tests:` is ordinary documentation and
+# data tests, as in stg_customers.yml.
+
 models:
   - name: stg_locations
     description: List of open locations with basic cleaning and transformation applied, one row per location.
@@ -7,16 +12,55 @@ models:
         data_tests:
           - not_null
           - unique
+      - name: location_name
+        description: The store's name. Renamed from the source table `raw_stores`, because the business says "location".
+      - name: tax_rate
+        description: The sales tax rate applied to orders at this location, as a decimal fraction.
+      - name: opened_date
+        description: The day the location opened, truncated from a timestamp.
+
+# ------------------------------------------------------------------------------------------------
+# Unit tests: testing the SQL, not the data.
+#
+# A data test (everything above) asks "is what is in the warehouse right?" and needs the real tables
+# to be loaded. A unit test asks "does this transformation do what I think?" - you supply a few input
+# rows, state the output you expect, and dbt builds the model against your rows in a temporary query
+# instead of the real source. No data needs to be loaded at all, and it runs in milliseconds.
+#
+# The parallel is unit testing in application code: fixed inputs, asserted outputs, no database
+# state, fast enough to run on every commit. It is the test you write when you have found a bug in
+# your own logic - because it fails until the logic is right, and then it stays as the proof.
+#
+# This one exists because of a real bug. Fabric's adapters implement date_trunc as
+#   CAST(DATEADD(day, DATEDIFF(day, 0, x), 0) AS DATE)
+# and that literal 0 is a legacy `datetime`, so a `datetime2` value of 23:59:59.9999 rounds *up* to
+# midnight before it is truncated - putting the row on the wrong day. The second fixture row below is
+# exactly that value, and it is what caught the bug. The fix is in macros/tsql_overrides.sql; this
+# test is what stops it coming back.
+#
+# Note that `given` overrides the *source*, so the model's own SQL - the date_trunc call - is what is
+# under test. Run these on their own with:
+#   dbt test --select test_type:unit
+# ------------------------------------------------------------------------------------------------
 
 unit_tests:
   - name: test_does_location_opened_at_trunc_to_date
     description: "Check that opened_at timestamp is properly truncated to a date."
     model: stg_locations
+
+    # The inputs. Each `input` replaces one source() or ref() the model reads. Columns the model does
+    # not use can be omitted; anything you leave out arrives as null.
     given:
       - input: source('ecom', 'raw_stores')
         rows:
           - {id: 1, name: "Vice City", tax_rate: 0.2, opened_at: "2016-09-01T00:00:00"}
+          # The bug fixture: one ten-thousandth of a second before midnight, on the last day of the
+          # month, in a leap-adjacent year. If truncation rounds instead of truncating, this row
+          # comes out as 2079-10-28 and the test fails.
           - {id: 2, name: "San Andreas", tax_rate: 0.1, opened_at: "2079-10-27T23:59:59.9999"}
+
+    # The assertion: the exact rows the model must produce from those inputs. dbt compares the full
+    # result set, so every column named here must match - and only the columns named here are checked.
     expect:
       rows:
         - {location_id: 1, location_name: "Vice City", tax_rate: 0.2, opened_date: "2016-09-01"}

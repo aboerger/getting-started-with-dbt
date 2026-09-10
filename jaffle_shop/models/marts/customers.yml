@@ -1,13 +1,31 @@
+# customers - the mart Demo 1 builds, and the page Demo 3 opens in the docs site.
+#
+# This is the most thoroughly documented model in the project, because it is the one an analyst would
+# actually use. That is the right place to spend documentation effort: staging models are read by the
+# data team, marts are read by everyone.
+
 models:
   - name: customers
     description: >
       Customer overview data mart, offering key details for each unique customer.
       One row per customer. A customer with a single order is 'new'; two or more orders make them 'returning'.
       Amounts in USD.
+
+    # A model-level test: it spans three columns, so it cannot be attached to any one of them.
+    #
+    # The claim is that the three lifetime totals reconcile - pre-tax spend plus tax equals total
+    # spend - for all 935 customers. Each of those columns is a sum over every order a customer has
+    # ever placed, computed in a different part of the query, so this test is really asserting that
+    # the aggregation in customers.sql did not lose or double-count a row anywhere along the chain
+    # from order_items through orders to here.
+    #
+    # A test like this is cheap to write and catches the failures that matter: not "this column is
+    # null" but "the numbers in this report do not add up".
     data_tests:
       - dbt_utils.expression_is_true:
           arguments:
             expression: "lifetime_spend_pretax + lifetime_tax_paid = lifetime_spend"
+
     columns:
       - name: customer_id
         description: The unique key of the customers mart. Matches stg_customers.
@@ -23,13 +41,27 @@ models:
       - name: last_ordered_at
         description: The timestamp of a customer's most recent order.
       - name: lifetime_spend_pretax
-        description: The sum of all the pre-tax subtotals of every order a customer has placed.
+        description: "The sum of all the pre-tax subtotals of every order a customer has placed. {{ doc('money_in_usd') }}"
       - name: lifetime_tax_paid
-        description: The sum of all the tax portion of every order a customer has placed.
+        description: "The sum of all the tax portion of every order a customer has placed. {{ doc('money_in_usd') }}"
       - name: lifetime_spend
-        description: The sum of all the order totals (including tax) that a customer has ever placed.
+        description: "The sum of all the order totals (including tax) that a customer has ever placed. {{ doc('money_in_usd') }}"
+
+      # This description is a doc block reference and nothing else: the explanation of what 'new' and
+      # 'returning' mean needs a table and three paragraphs, which has no business being wedged into
+      # a YAML string. It lives in ../_shared__docs.md and renders as proper Markdown in the docs
+      # site. Compare with the mixed inline-plus-block style used on the columns above.
       - name: customer_type
-        description: Options are 'new' or 'returning', indicating if a customer has ordered more than once or has only placed their first order to date.
+        description: "{{ doc('customer_type') }}"
+
+        # `accepted_values` is dbt's built-in enumeration test: it fails if the column ever contains
+        # anything other than these two strings. The generated SQL groups by the column and looks for
+        # values not in the list.
+        #
+        # This is the test the Demo 2 variant breaks by changing 'returning' to 'Returning' in
+        # customers.sql - a one-character change that no type system would catch, that a Power BI
+        # slicer would silently render as two categories, and that this test turns into a build
+        # failure before anyone sees the report.
         data_tests:
           - accepted_values:
               arguments:

@@ -1,3 +1,9 @@
+# stg_products - where the two boolean flags are derived.
+#
+# The model computes is_food_item and is_drink_item from the source's `type` column, which is the one
+# piece of real logic in this file's model. Both are documented with a shared doc block, because the
+# encoding of a boolean is the same story on every engine and not worth retelling per column.
+
 models:
   - name: stg_products
     description: Product (food and drink items that can be ordered) data with basic cleaning and transformation applied, one row per product.
@@ -7,3 +13,19 @@ models:
         data_tests:
           - not_null
           - unique
+      - name: product_name
+        description: The product's name as it appears on the menu.
+      - name: product_type
+        description: Either 'jaffle' or 'beverage'. The source column the two boolean flags below are derived from.
+      - name: product_description
+        description: Free-text description of the product.
+      - name: product_price
+        description: "The menu price of the product. {{ doc('money_in_usd') }}"
+
+      # An inline sentence plus a shared doc block from _shared__docs.md. The specific meaning stays
+      # here next to the column; the general explanation of how booleans are represented on three
+      # different engines is written once and referenced three times.
+      - name: is_food_item
+        description: "True when the product is a jaffle. {{ doc('boolean_flag') }}"
+      - name: is_drink_item
+        description: "True when the product is a beverage. {{ doc('boolean_flag') }}"

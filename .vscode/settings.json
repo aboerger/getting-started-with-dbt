@@ -7,5 +7,19 @@
         "~/.copilot/skills": true,
         "~/.claude/skills": true,
         "~/.vscode/extensions/synapsevscode.synapse-1.25.1/copilot/skills": true
+    },
+    // dbt models are Jinja templates, not T-SQL. Opening them as "SQL" makes the mssql extension's
+    // parser flag every {{ ref(...) }} and every {# comment #} as a syntax error, which is both
+    // wrong and distracting on a projector. `jinja-sql` (from the samuelcolvin.jinjahtml extension)
+    // gives SQL highlighting plus Jinja, and no error checking.
+    //
+    // Only the dbt project and its generated copies inside the Fabric dbt job items are remapped -
+    // the .sql files under workspace/WH_Jaffle_Shop.Warehouse and workspace/DB_Jaffle_Shop.SQLDatabase
+    // really are T-SQL and keep the full mssql experience.
+    //
+    // Remove these two lines to get the default behaviour back.
+    "files.associations": {
+        "**/jaffle_shop/**/*.sql": "jinja-sql",
+        "**/*.DataBuildToolJob/Code/dbt/**/*.sql": "jinja-sql"
     }
 }

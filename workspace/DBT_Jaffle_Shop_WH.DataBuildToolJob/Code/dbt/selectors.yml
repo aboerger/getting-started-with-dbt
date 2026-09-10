@@ -1,3 +1,31 @@
+# Selectors: saved, named selections of nodes.
+#
+# Every dbt command takes `--select`, and the graph operators are what make it powerful:
+#
+#     dbt build --select customers        just that model
+#     dbt build --select +customers       customers and everything it depends on (ancestors)
+#     dbt build --select stg_orders+      stg_orders and everything downstream of it (descendants)
+#     dbt build --select +orders+         both directions
+#     dbt build --select staging          everything in the models/staging folder
+#     dbt build --select tag:finance      everything carrying a tag
+#     dbt build --select state:modified+  what changed since a previous run, plus its children
+#
+# That last one is how CI stays fast on a large project: rebuild what changed and what depends on
+# it, not the other two thousand models.
+#
+# A selection that gets typed repeatedly - or that has to be right in front of an audience - belongs
+# in this file instead, where it is named, documented and version-controlled:
+#
+#     dbt build --selector demo1
+#
+# Both selectors below are demo safety nets. `demo1` builds the customers branch when there is not
+# time for a full build; `demo2` is the selection Demo 2 uses to show a failing test stopping the
+# DAG - stg_orders and its 21 descendants, of which 17 get skipped once its test fails.
+#
+# Selectors can be much richer than these two: `union`, `intersection` and `exclude` blocks compose
+# the same operators into named sets. These are deliberately simple, because their job is to be
+# readable on a projector.
+
 selectors:
   - name: demo1
     description: "Demo 1 - the customers mart and everything it depends on"

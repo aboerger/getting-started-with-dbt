@@ -1,22 +1,79 @@
+# Sources: the project's contract with whoever loads the data.
+#
+# This file is where data enters the project. It declares six tables that dbt does not build and does
+# not own, and gives them names that models can refer to:
+#
+#     select * from {{ source('ecom', 'raw_customers') }}      in stg_customers.sql
+#                     ^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^
+#                     source  table, both named below
+#
+# which compiles to `raw.raw_customers`. Three things come out of that indirection:
+#
+#   1. The schema is written down once. If ingestion moves these tables to a different schema or
+#      database, this file changes and none of the twelve models do.
+#   2. The sources appear in the lineage graph, so the docs site shows where every number came from -
+#      including the boundary where dbt's responsibility starts. Open it in Demo 3.
+#   3. `source()` reads differently from `ref()` to anyone reviewing the SQL: this is somebody
+#      else's table, arriving on somebody else's schedule, and we do not control its shape.
+#
+# The rule this project follows - and the one worth adopting - is that only staging models may call
+# source(). Everything else calls ref(). That is what makes the staging layer the single place where
+# an upstream change has to be absorbed.
+#
+# In this repository the raw tables happen to be loaded by `dbt seed` from CSVs (see ../../seeds/),
+# because a conference demo cannot depend on a real pipeline. The project cannot tell the difference,
+# which is the point: the seeds are loaded once, into a shared `raw` schema, and then treated as
+# untouchable.
+#
+# `version: 2` is the schema version of this YAML file itself. It is the only version dbt supports and
+# is optional in recent versions; the model .yml files in this folder leave it out.
 version: 2
 
 sources:
+    # `name` is the first argument to source(). A source groups tables that arrive together from one
+    # system - here, one e-commerce system. A project with several upstream systems declares one
+    # source per system, usually one file each.
   - name: ecom
+
+    # The schema these tables actually live in. Add `database:` too if they are in another database.
+    # dbt never creates or writes to it.
     schema: raw
     description: E-commerce data for the Jaffle Shop
+
     tables:
+        # Descriptions on a source are worth writing even though nobody here owns the table, because
+        # this is where a reader finds out what the grain is before it has been cleaned up. Note the
+        # source system's vocabulary throughout: `raw_stores` becomes stg_locations, `customer`
+        # becomes customer_id, and money arrives as integer cents.
       - name: raw_customers
         description: One record per person who has purchased one or more items
+
       - name: raw_orders
         description: One record per order (consisting of one or more order items)
+
+        # `loaded_at_field` names the column dbt should look at to judge how fresh this table is. It
+        # powers a command of its own:
+        #
+        #     dbt source freshness
+        #
+        # which runs `select max(ordered_at) from raw.raw_orders` and reports how long ago that was.
+        # Add a `freshness:` block with warn_after / error_after thresholds and it becomes an
+        # assertion - a scheduled build can then fail because ingestion is late, before it wastes
+        # twenty minutes rebuilding marts from yesterday's data. No thresholds are set here because
+        # the demo data is static and would be permanently stale.
         config:
           loaded_at_field: ordered_at
+
       - name: raw_items
         description: Items included in an order
+
       - name: raw_stores
+        description: One record per store location, with its sales tax rate. Becomes stg_locations.
         config:
           loaded_at_field: opened_at
+
       - name: raw_products
         description: One record per SKU for items sold in stores
+
       - name: raw_supplies
         description: One record per supply per SKU of items sold in stores

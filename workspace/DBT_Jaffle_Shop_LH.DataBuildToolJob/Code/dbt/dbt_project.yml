@@ -1,12 +1,41 @@
+# dbt_project.yml - the file that makes this folder a dbt project.
+#
+# Two jobs: tell dbt where things are, and set the defaults that apply to everything it finds. There
+# is no build order in here, no schedule, and no list of models - dbt discovers the models by reading
+# the folders below, and works out the order from the ref() calls inside them.
+#
+# Configuration cascades from here down, most specific winning:
+#
+#     dbt_project.yml        a whole folder at a time      "all marts are tables"
+#     the model's .yml       one model                     "except this one"
+#     config() in the .sql   one model, next to the code   "and this one is incremental"
+#
+# Setting it here, at the folder level, is what makes a project consistent by default: a new file
+# dropped into models/marts/ is a table without anyone deciding.
+#
+# See README.md in this folder for the tour, and each subfolder's README.md for its concept.
+
+# The schema version of this file's format, not of the project. It has been 2 for years.
 config-version: 2
 
+# The project name. It is also the top-level key under `models:` and `seeds:` below, and the
+# namespace macros in this project live in - so it cannot be changed casually.
 name: "jaffle_shop"
 version: "3.0.0"
+
+# A guard rail worth copying: dbt refuses to run if its own version is outside this range, so a
+# colleague on a different version gets a clear error instead of a strange failure.
 # The Fabric dbt job runtime v1.0 ships dbt Core 1.11; the laptop, CI and notebook pin 1.11 too.
 require-dbt-version: [">=1.10.0", "<2.0.0"]
 
+# Which profile in profiles.yml to use - i.e. which set of connections. The project says *which*
+# profile; the profile says how to connect; `--target` picks one connection out of it. That is the
+# separation that lets these same models build on three different Fabric engines.
 profile: jaffle_shop
 
+# Where dbt looks for each kind of thing. These are the defaults for every path except test-paths
+# (dbt's default is "tests"; this project renamed it to data-tests to distinguish data tests from
+# unit tests). Each folder has a README.md explaining what belongs in it.
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["data-tests"]
@@ -14,15 +43,37 @@ seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
+# Everything dbt generates goes in target/: compiled SQL, the run results, the manifest, and the
+# documentation site. It is derived, never authored, and git-ignored. Reading target/compiled/ is the
+# fastest way to understand anything dbt did.
 target-path: "target"
+
+# What `dbt clean` deletes. Both are regenerated - target/ by any build, dbt_packages/ by `dbt deps`.
 clean-targets:
   - "target"
   - "dbt_packages"
 
+# ------------------------------------------------------------------------------------------------
+# Seeds
+#
 # Seeds stand in for the ingestion layer. They are disabled by default so that
 # `dbt build` never re-loads ~150k raw rows; load them once per target with
 #   dbt seed --vars '{"load_source_data": true}' --target <warehouse|lakehouse|sqldb>
 # Models read the loaded tables through source('ecom', ...) in models/staging/__sources.yml.
+#
+# Three ideas are on display in this block, and they apply to models just as much as to seeds:
+#
+#   * The `+` prefix marks a *configuration* (+schema, +enabled, +column_types) as opposed to a
+#     folder or file name. Keys without a + are paths: `jaffle-data` below is the subfolder.
+#   * `+enabled: false` removes a node from the project altogether - not built, not tested, not in
+#     the DAG. Here it is driven by `var()`, so the default is off and one command-line flag turns
+#     it on. Variables are dbt's general mechanism for this.
+#   * `+column_types` pins the types dbt would otherwise infer from the CSV. The Jinja expression
+#     picks the right type name per engine - `string` on Spark, `varchar(36)` on T-SQL - which is
+#     how one seed definition serves three targets.
+#
+# See seeds/README.md for why the raw tables are loaded this way at all.
+# ------------------------------------------------------------------------------------------------
 seeds:
   jaffle_shop:
     +schema: raw
@@ -60,6 +111,25 @@ seeds:
           name: "{{ 'string' if target.type == 'fabricspark' else 'varchar(100)' }}"
           sku: "{{ 'string' if target.type == 'fabricspark' else 'varchar(10)' }}"
 
+# ------------------------------------------------------------------------------------------------
+# Models
+#
+# Four lines that decide how twelve models are physically built. `+materialized` is dbt's most
+# important configuration: it chooses the strategy dbt uses to persist a model, and the model's SQL
+# never mentions it.
+#
+#   staging -> view    cheap, never stale, no storage. These are thin renames; there is nothing to
+#                      gain by persisting them, and a view is always consistent with its source.
+#   marts   -> table   fast to query, rebuilt from scratch every run. Consumers read a real table.
+#
+# Because it is set per folder, moving the whole marts layer to `incremental` - the answer when a
+# full rebuild becomes too slow - is a one-word change here rather than twelve file edits. The other
+# options are `ephemeral` (inlined into children as a CTE, never persisted) and adapter-specific
+# strategies. See models/README.md.
+#
+# The folder names here (`staging`, `marts`) are paths under models/, not magic words: dbt applies
+# the config to whatever it finds in them.
+# ------------------------------------------------------------------------------------------------
 models:
   jaffle_shop:
     staging:
@@ -67,5 +137,8 @@ models:
     marts:
       +materialized: table
 
+# Behaviour flags: opt-ins to changes dbt has made without breaking older projects. This one requires
+# generic tests to pass their parameters under an explicit `arguments:` key - the newer, unambiguous
+# syntax you see in every .yml file in models/.
 flags:
   require_generic_test_arguments_property: true

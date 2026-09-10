@@ -1,16 +1,29 @@
+# supplies - the supply dimension, and the surrogate key story.
+#
+# A pass-through mart like products and locations. What makes it worth a look is its key: the source
+# has no single unique column, so stg_supplies hashes two of them together into supply_uuid. The doc
+# block referenced below explains how and why.
+
 models:
   - name: supplies
     description: |
       Supplies dimension table. The grain of the table is one row per supply and product combination.
     columns:
+      # Description written as a doc block reference, so the explanation of surrogate keys is
+      # maintained in one place (../_shared__docs.md) rather than paraphrased here and in
+      # staging/stg_supplies.yml.
       - name: supply_uuid
-        description: Surrogate key of supply and product.
+        description: "{{ doc('surrogate_key') }}"
         data_tests:
           - not_null
           - unique
       - name: supply_id
+        description: The source system's identifier for the supply. Not unique in this table - several products can share a supply.
       - name: product_id
+        description: The product (SKU) this supply is used for.
       - name: supply_name
+        description: The supply's name, for example 'compostable cutlery'.
       - name: supply_cost
-        description: Cost of the supply in USD.
+        description: "Cost of the supply in USD. {{ doc('money_in_usd') }}"
       - name: is_perishable_supply
+        description: "True when the supply perishes and cannot be stockpiled. {{ doc('boolean_flag') }}"

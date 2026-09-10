@@ -1,12 +1,38 @@
+# stg_supplies - the model whose grain is not what you would guess.
+#
+# Worth reading for the description below: this is the one table in the project where "one row per
+# supply" is wrong, and saying so in the description is the whole reason descriptions exist.
+
 models:
   - name: stg_supplies
+
+    # A block description. `>` folds the following indented lines into one paragraph per blank line,
+    # which is how you write more than a sentence in YAML without fighting the quoting rules.
+    #
+    # This is a genuinely important description. Anyone who assumes one row per supply here will
+    # double-count supply costs the moment they join to it - which is exactly the mistake that
+    # order_items.sql avoids by aggregating before it joins, and that its unit test pins down.
     description: >
       List of our supply expenses data with basic cleaning and transformation applied.
 
       One row per supply cost, not per supply. As supply costs fluctuate they receive a new row with a new UUID. Thus there can be multiple rows per supply_id.
+
     columns:
+      # Because neither id nor sku is unique on its own, the model hashes them together into a
+      # surrogate key - and that key is what the uniqueness test can then guard. See the
+      # `surrogate_key` doc block in ../_shared__docs.md, referenced from marts/supplies.yml.
       - name: supply_uuid
         description: The unique key of our supplies per cost.
         data_tests:
           - not_null
           - unique
+      - name: supply_id
+        description: The source system's identifier for the supply. Not unique in this table.
+      - name: product_id
+        description: The product (SKU) this supply is used for. Renamed from the source column `sku`.
+      - name: supply_name
+        description: The supply's name, for example 'compostable cutlery'.
+      - name: supply_cost
+        description: "The cost of this supply for one unit of the product. {{ doc('money_in_usd') }}"
+      - name: is_perishable_supply
+        description: "True when the supply perishes and cannot be stockpiled. {{ doc('boolean_flag') }}"

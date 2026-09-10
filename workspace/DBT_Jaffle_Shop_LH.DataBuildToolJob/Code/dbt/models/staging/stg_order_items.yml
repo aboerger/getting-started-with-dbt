@@ -1,3 +1,8 @@
+# stg_order_items - the model that shows referential integrity testing.
+#
+# New idea in this file: the `relationships` test, which is a foreign key that is checked on every
+# build instead of being declared once and enforced never.
+
 models:
   - name: stg_order_items
     description: Individual food and drink items that make up our orders, one row per item.
@@ -7,11 +12,28 @@ models:
         data_tests:
           - not_null
           - unique
+
       - name: order_id
         description: The corresponding order each order item belongs to
         data_tests:
           - not_null
+
+          # `relationships` is the foreign-key test: it fails if any order_id in this model has no
+          # matching order_id in stg_orders. The generated SQL is a left join looking for orphans.
+          #
+          # Fabric Warehouse, like most analytical engines, does not enforce foreign keys even if you
+          # declare them - so this test is not a duplicate of a constraint, it is the only thing
+          # actually checking the relationship. Orphaned facts are one of the most common warehouse
+          # defects and one of the hardest to spot downstream, because the rows simply go missing
+          # from a report rather than causing an error.
+          #
+          # Note the `to: ref('stg_orders')`: a test can create an edge in the DAG. dbt will always
+          # build stg_orders before running this test, and the test is included whenever you select
+          # either model.
           - relationships:
               arguments:
                 to: ref('stg_orders')
                 field: order_id
+
+      - name: product_id
+        description: The product (SKU) that was ordered. Renamed from the source column `sku`.

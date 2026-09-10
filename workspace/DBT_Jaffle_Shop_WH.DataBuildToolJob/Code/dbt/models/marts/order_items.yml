@@ -1,3 +1,8 @@
+# order_items - the finest grain in the project, and the aggregate-before-you-join lesson.
+#
+# One row per item within an order. Everything coarser (orders, then customers) is built by
+# aggregating this model, so its grain is the foundation the other two marts stand on.
+
 models:
   - name: order_items
     description: |
@@ -17,25 +22,49 @@ models:
                 field: order_id
       - name: product_id
         description: The product (SKU) that was ordered.
+      - name: product_name
+        description: The product's name, joined from the products dimension.
+      - name: product_price
+        description: "The list price of the product at the time of the build. {{ doc('money_in_usd') }}"
       - name: ordered_at
         description: The day the parent order was placed.
       - name: is_food_item
-        description: A boolean indicating if the item is a jaffle.
+        description: "True when the item is a jaffle. {{ doc('boolean_flag') }}"
       - name: is_drink_item
-        description: A boolean indicating if the item is a beverage.
+        description: "True when the item is a beverage. {{ doc('boolean_flag') }}"
       - name: supply_cost
-        description: The sum of supply costs for this product, in USD.
+        description: "The sum of supply costs for this product, in USD. {{ doc('money_in_usd') }}"
+
+# ------------------------------------------------------------------------------------------------
+# The unit test that documents the most common warehouse bug.
+#
+# stg_supplies has one row per supply *per product* - a product with three supplies has three rows.
+# Join it straight to order_items and each item fans out into three rows, and every downstream sum
+# triples. The fix is in order_items.sql: collapse supplies to one row per product first, then join
+# one-to-one.
+#
+# This test proves that. Product 2 is given two supply rows, 3.50 and 5.00, and is expected to arrive
+# as a single supply_cost of 8.50 - not as two rows, and not as 3.50. It would fail immediately if
+# somebody "simplified" the model by joining stg_supplies directly.
+#
+# Note the last two expected rows: order 2 contains product 2 twice, so two rows *should* come out,
+# each carrying the full 8.50. Getting a test like this right requires being precise about what the
+# grain is - which is exactly the thinking the test is there to preserve.
+# ------------------------------------------------------------------------------------------------
 
 unit_tests:
   - name: test_supply_costs_sum_correctly
     description: "Test that supply costs are summed per product before joining to order items."
     model: order_items
     given:
+      # Two supply rows for product 2 - the fan-out risk this test exists to catch.
       - input: ref('stg_supplies')
         rows:
           - {product_id: 1, supply_cost: 4.50}
           - {product_id: 2, supply_cost: 3.50}
           - {product_id: 2, supply_cost: 5.00}
+      # All four inputs the model reads must be listed, even where the test does not care about their
+      # columns - an input left out entirely would fall back to the real table.
       - input: ref('stg_products')
         rows:
           - {product_id: 1}

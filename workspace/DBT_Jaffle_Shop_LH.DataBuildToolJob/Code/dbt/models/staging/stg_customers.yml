@@ -1,9 +1,48 @@
+# The anatomy of a model's YAML file.
+#
+# Every model in this project has a .yml file beside its .sql file. The SQL says how the model is
+# built; this file says what it means and what must be true of it. This one is the simplest in the
+# project, so it is commented as a tour of the format - the other .yml files assume you have read it.
+#
+# Nothing here affects the data. Descriptions become the documentation site (`dbt docs generate`),
+# and each entry under `data_tests` becomes a real query that fails the build if it returns rows.
+#
+# The file name does not matter to dbt; only the `name:` keys inside it do. One file per model is a
+# convention, and a good one - a reviewer sees the model and its guarantees in the same diff. dbt
+# would equally accept every model in this folder documented in a single `_staging__models.yml`.
+
 models:
+    # `name` must match the model file: stg_customers.sql. If it does not, dbt fails with
+    # "unused config given in ..." - a patch describing a model that does not exist.
   - name: stg_customers
+
+    # Shown at the top of this model's page in the docs site, and in the search results. The
+    # convention here is to state the grain - "one row per customer" - because that single sentence
+    # answers most questions people have about a table.
     description: Customer data with basic cleaning and transformation applied, one row per customer.
+
+    # `columns` is where per-column documentation and tests go. You do not have to list every column,
+    # and dbt does not check that the ones you list exist in the SQL. Listing the keys and the
+    # business-critical fields is the usual compromise.
     columns:
       - name: customer_id
         description: The unique key for each customer.
+
+        # Two tests, and therefore two nodes in the DAG. They run after this model is built, and each
+        # one is a `select` that should return no rows:
+        #
+        #   not_null -> select customer_id from stg_customers where customer_id is null
+        #   unique   -> select customer_id from stg_customers group by customer_id having count(*) > 1
+        #
+        # `unique` + `not_null` on the key column is how a dbt project states "this is the primary
+        # key" - the warehouse has no constraint to declare it, and would not enforce one if it did.
+        # Read the generated SQL for yourself after `dbt compile`, under
+        # target/compiled/jaffle_shop/models/staging/stg_customers.yml/.
         data_tests:
           - not_null
           - unique
+
+      # Columns can be documented without being tested. `customer_name` gets a description so the
+      # docs site can explain it; there is nothing about it worth asserting.
+      - name: customer_name
+        description: The customer's full name, as supplied by the source system.

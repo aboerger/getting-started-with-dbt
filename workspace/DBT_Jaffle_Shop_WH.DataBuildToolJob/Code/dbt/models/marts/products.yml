@@ -1,3 +1,17 @@
+# products - a dimension table, and an example of a mart that transforms nothing.
+#
+# products.sql is `select * from {{ ref('stg_products') }}` and nothing else. It is fair to ask why
+# the model exists at all.
+#
+# The answer is that a mart is a published interface. Consumers - Power BI datasets, analysts, other
+# dbt projects - point at `products`, and the staging layer stays private to the data team. That
+# separation costs one file today and buys the freedom to change how the dimension is built later
+# without breaking a single report. If products later needs a supplier join or a slowly-changing
+# history, this is the file that changes, and nothing downstream notices.
+#
+# It also costs nothing at query time: the mart is materialized as a table, so consumers read a
+# table, not a chain of views.
+
 models:
   - name: products
     description: |
@@ -9,10 +23,14 @@ models:
           - not_null
           - unique
       - name: product_name
+        description: The product's name as it appears on the menu.
       - name: product_type
         description: Either 'jaffle' or 'beverage'.
       - name: product_description
+        description: Free-text description of the product.
       - name: is_food_item
+        description: "True when the product is a jaffle. {{ doc('boolean_flag') }}"
       - name: is_drink_item
+        description: "True when the product is a beverage. {{ doc('boolean_flag') }}"
       - name: product_price
-        description: List price in USD.
+        description: "List price in USD. {{ doc('money_in_usd') }}"

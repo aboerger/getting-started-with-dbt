@@ -1,3 +1,24 @@
+# What a dbt project does NOT commit.
+#
+# Everything here is derived: dbt regenerates all of it from the files that are committed, which is
+# the test of whether a project is really "just code". If a directory in here were lost, one command
+# would bring it back.
+#
+# target/        compiled SQL, run_results.json, manifest.json and the docs site. Rebuilt by any
+#                `dbt compile`, `dbt run` or `dbt build`. Worth reading, never worth committing -
+#                it would conflict on every pull request and tell you nothing a diff of the source
+#                would not.
+# dbt_packages/  third-party packages, restored by `dbt deps` from packages.yml. package-lock.yml
+#                *is* committed, so the restore is reproducible - same idea as node_modules.
+# logs/          dbt.log: one entry per statement dbt sent to the engine. The first place to look
+#                when an engine error makes no sense.
+# .user.yml      a random per-developer id dbt writes for anonymous usage statistics. Personal to
+#                the machine, so it is deliberately not shared.
+#
+# Note what is NOT ignored: profiles.yml is committed, because every value in it comes from an
+# environment variable and it contains no secrets. Connection details as code, credentials from the
+# environment.
+
 target/
 dbt_packages/
 logs/

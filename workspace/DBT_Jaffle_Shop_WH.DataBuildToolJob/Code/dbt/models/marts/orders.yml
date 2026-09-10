@@ -1,47 +1,102 @@
+# orders - one row per order, and the model with the most tests in the project.
+#
+# Two model-level tests and a unit test, all of them about arithmetic. This model sits in the middle
+# of the chain (order_items -> orders -> customers), so an error here reaches everything downstream -
+# which is why it is worth over-testing.
+
 models:
   - name: orders
     description: Order overview data mart, offering key details for each order including if it's a customer's first order and a food vs. drink item breakdown. One row per order.
+
     data_tests:
+      # Test 1: the sum of the item prices equals the order subtotal that came from the source
+      # system. This is the join-fan-out guard. orders.sql aggregates order_items to one row per
+      # order *before* joining, and if that aggregation were ever wrong - a duplicated item, a
+      # missing one - the totals would stop agreeing with the source and this test would fail.
+      #
+      # It is also a genuine cross-system reconciliation: order_items_subtotal is computed by this
+      # project, subtotal arrives from the e-commerce system, and they must agree to the penny.
       - dbt_utils.expression_is_true:
           arguments:
             expression: "order_items_subtotal = subtotal"
+
+      # Test 2: the same arithmetic identity that stg_orders asserts, re-checked after the joins and
+      # aggregation of this model. Asserting it in both places is deliberate - the staging test says
+      # the source data is coherent, this one says the transformation preserved it.
       - dbt_utils.expression_is_true:
           arguments:
             expression: "order_total = subtotal + tax_paid"
+
     columns:
       - name: order_id
         description: The unique key of the orders mart.
         data_tests:
           - not_null
           - unique
+
       - name: customer_id
         description: The foreign key relating to the customer who placed the order.
         data_tests:
+          # The foreign-key check points back at the staging model rather than at the customers mart,
+          # because customers is built *from* orders - pointing it at the mart would be circular.
           - relationships:
               arguments:
                 to: ref('stg_customers')
                 field: customer_id
+
       - name: location_id
         description: The foreign key relating to the location (store) the order was placed at.
       - name: order_total
-        description: The total amount of the order in USD including tax.
+        description: "The total amount of the order in USD including tax. {{ doc('money_in_usd') }}"
+      - name: subtotal
+        description: "The order amount before tax, from the source system. {{ doc('money_in_usd') }}"
+      - name: tax_paid
+        description: "The sales tax charged on the order. {{ doc('money_in_usd') }}"
       - name: ordered_at
         description: The timestamp the order was placed at, truncated to the day.
       - name: order_cost
-        description: The sum of supply expenses to fulfill the order.
+        description: "The sum of supply expenses to fulfill the order. {{ doc('money_in_usd') }}"
+      - name: order_items_subtotal
+        description: "The sum of the list prices of the items in the order, computed by this project rather than supplied by the source. {{ doc('money_in_usd') }}"
+      - name: count_order_items
+        description: The number of items in the order.
+      - name: count_food_items
+        description: How many of the items were jaffles.
+      - name: count_drink_items
+        description: How many of the items were beverages.
       - name: is_food_order
-        description: A boolean indicating if this order included any food items.
+        description: "True when the order included at least one food item. {{ doc('boolean_flag') }}"
       - name: is_drink_order
-        description: A boolean indicating if this order included any drink items.
+        description: "True when the order included at least one drink item. {{ doc('boolean_flag') }}"
       - name: customer_order_number
         description: The sequence number of this order for the customer (1 = first order).
+
+# ------------------------------------------------------------------------------------------------
+# A unit test of the boolean logic. See models/staging/stg_locations.yml for what a unit test is and
+# how it differs from the data tests above.
+#
+# What is being pinned down here is the two-step count-then-flag logic in orders.sql: items are
+# counted per order, and the counts are turned into is_food_order / is_drink_order flags. Three input
+# items across two orders are enough to prove all four combinations behave - order 1 has one of each,
+# order 2 has food only and must come out with is_drink_order false rather than null.
+#
+# Nulls are the real risk in that logic. An order with no drinks gets a count from a left join, and if
+# the flag were derived without care the answer would be null instead of false - which disappears from
+# a `where is_drink_order = 0` filter rather than showing up as a wrong number.
+# ------------------------------------------------------------------------------------------------
 
 unit_tests:
   # Boolean fixture values are quoted: dbt would otherwise render a bare True/False, which T-SQL
   # reads as a column name. cast('true' as bit) and cast('true' as boolean) both work.
+  #
+  # That single detail is a fair summary of what porting this project to Fabric involved - see
+  # macros/booleans.sql for why T-SQL needs the fixtures written this way at all.
   - name: test_order_items_compute_to_bools_correctly
     description: "Test that the counts of drinks and food orders convert to booleans properly."
     model: orders
+
+    # Both refs this model reads are replaced. Note that the fixture for stg_orders supplies only
+    # order_id: the columns this test does not assert on can be left out, and arrive as null.
     given:
       - input: ref('order_items')
         rows:

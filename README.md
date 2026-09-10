@@ -19,7 +19,7 @@ engines from four different hosts.
 
 | Path | Purpose |
 | --- | --- |
-| `jaffle_shop/` | the dbt project: sources, staging views, marts, tests, unit tests, macros, `profiles.yml` |
+| `jaffle_shop/` | the dbt project: sources, staging views, marts, tests, unit tests, macros, `profiles.yml`. Documented for teaching from the inside — see below |
 | `requirements/` | pinned Python requirements, one file per adapter, plus `tools.in` for the bundle publisher |
 | `tools/` | `setup-env.ps1` (venvs), `env.example.ps1` (variables), `scenario.ps1` (Demo 2 break/reset); `publish_dbt_bundle.py` and its modules publish the OneLake bundles the two runner notebooks run (see below); `sync_fabric_dbt_jobs.py` copies the project into the Fabric dbt job items (`workspace/DBT_*/Code/dbt`, checked in CI) |
 | `runner/` | `jaffle-dbt-runner`: the in-notebook runner package the bundles carry; unit-tested, never committed as a wheel |
@@ -28,6 +28,30 @@ engines from four different hosts.
 | `docs/runbook.md` | the demo script: commands, expected output, recovery |
 | `docs/fabric-setup.md` | one-time setup: tenant settings, service principal, Azure DevOps, dbt jobs, notebook |
 | `sql-as-software-getting-started-with-dbt.pptx` | the deck |
+
+## The project explains itself
+
+The dbt project is documented from the inside, so it can be read on screen during the talk without
+slides. Every directory has a `README.md` covering the dbt concept it holds, and the files themselves
+carry teaching comments — Jinja comments in the models (stripped at compile time, so the warehouse
+objects stay clean) and `#` comments in the YAML.
+
+| Start here | Teaches |
+| --- | --- |
+| [`jaffle_shop/README.md`](jaffle_shop/README.md) | what a dbt project is, translated for Microsoft data platform people; the compile-then-run model; the command vocabulary |
+| [`jaffle_shop/models/README.md`](jaffle_shop/models/README.md) | `source()` vs `ref()` and how the DAG is derived; the staging/marts split; materializations |
+| [`jaffle_shop/models/staging/README.md`](jaffle_shop/models/staging/README.md) | why a "does nothing" layer earns its place |
+| [`jaffle_shop/models/marts/README.md`](jaffle_shop/models/marts/README.md) | grain, and aggregate-before-you-join |
+| [`jaffle_shop/macros/README.md`](jaffle_shop/macros/README.md) | Jinja, `adapter.dispatch`, and overriding dbt's own macros |
+| [`jaffle_shop/seeds/README.md`](jaffle_shop/seeds/README.md) | what seeds are for, and what they are not |
+| [`jaffle_shop/data-tests/README.md`](jaffle_shop/data-tests/README.md) | generic vs singular vs unit tests |
+| [`jaffle_shop/analyses/README.md`](jaffle_shop/analyses/README.md) | compiled-but-never-run SQL |
+| [`jaffle_shop/snapshots/README.md`](jaffle_shop/snapshots/README.md) | slowly-changing dimensions, and why this project has none |
+
+Suggested reading order for someone new to dbt is at the bottom of `jaffle_shop/README.md`.
+[`jaffle_shop/models/_shared__docs.md`](jaffle_shop/models/_shared__docs.md) holds the doc blocks that
+several models' column descriptions pull in, which is also what the documentation site renders in
+Demo 3.
 
 ## Quick start (laptop)
 

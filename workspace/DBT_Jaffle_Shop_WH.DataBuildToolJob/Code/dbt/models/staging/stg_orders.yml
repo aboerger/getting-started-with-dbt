@@ -1,13 +1,67 @@
+# stg_orders - the busiest staging model, and the one Demo 2 breaks.
+#
+# New ideas in this file, on top of what stg_customers.yml covers:
+#   * a model-level test (an assertion across columns, not about one column)
+#   * a test from a package rather than from dbt itself
+#   * descriptions pulled from a doc block in _shared__docs.md
+
 models:
   - name: stg_orders
     description: Order data with basic cleaning and transformation applied, one row per order. Amounts in USD.
+
+    # Model-level tests sit here, indented under the model rather than under a column, because they
+    # are about the relationship *between* columns. dbt's four built-in tests cannot express that, so
+    # this one comes from the dbt_utils package (see ../../packages.yml): expression_is_true takes any
+    # boolean SQL expression and fails if a row does not satisfy it.
+    #
+    # This is the most valuable test in the project. It is not checking a data type or a key - it is
+    # checking that the money adds up, which is the kind of error that survives every technical
+    # validation and reaches a report.
+    #
+    # It is also the test Demo 2 breaks: leaving tax_paid in cents makes this assertion fail on 61,465
+    # of 61,948 orders, and the models downstream are skipped rather than built. The 483 that still
+    # pass are orders with no tax at all - zero cents is zero dollars.
+    #
+    # `dbt build` names the test node after the model and the expression, which is why it appears in
+    # the console as dbt_utils_expression_is_true_stg_orders_order_total_tax_paid_subtotal.
     data_tests:
       - dbt_utils.expression_is_true:
           arguments:
             expression: "order_total - tax_paid = subtotal"
+
     columns:
       - name: order_id
         description: The unique key for each order.
         data_tests:
           - not_null
           - unique
+
+      - name: customer_id
+        description: The customer who placed the order. Renamed from the source column `customer`.
+
+      - name: location_id
+        description: The store the order was placed at. Renamed from the source column `store_id`.
+
+      - name: ordered_at
+        description: The day the order was placed, truncated from a timestamp.
+
+      # `{{ doc('money_in_usd') }}` pulls this column's description out of _shared__docs.md, where it
+      # is written once as several paragraphs and a couple of caveats. Six columns reference it.
+      #
+      # A description is rendered as Jinja, so a doc block can be mixed with inline text like this -
+      # useful when a column needs one specific sentence plus a shared explanation.
+      - name: subtotal
+        description: "The order total before tax. {{ doc('money_in_usd') }}"
+      - name: tax_paid
+        description: "The sales tax charged on the order. {{ doc('money_in_usd') }}"
+      - name: order_total
+        description: "What the customer paid, tax included. {{ doc('money_in_usd') }}"
+
+      # The source system's integer cents are kept alongside the dollar amounts, so that a
+      # reconciliation against the source is always possible without recomputing anything.
+      - name: subtotal_cents
+        description: The order subtotal in integer cents, exactly as the source system stores it.
+      - name: tax_paid_cents
+        description: The sales tax in integer cents, exactly as the source system stores it.
+      - name: order_total_cents
+        description: The order total in integer cents, exactly as the source system stores it.

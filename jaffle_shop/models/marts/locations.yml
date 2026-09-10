@@ -1,3 +1,13 @@
+# locations - the store dimension. Six rows.
+#
+# Like products and supplies, this mart is a pass-through of its staging view; see products.yml for
+# why a pass-through mart is worth having.
+#
+# The name is the interesting part. The source table is called `raw_stores` and the source column is
+# `store_id`, but the business says "location", so the staging model renames both and the mart
+# publishes the business's word. Translating vocabulary at the staging boundary - rather than asking
+# every analyst to remember that stores are locations - is a small thing that compounds.
+
 models:
   - name: locations
     description: |
@@ -9,7 +19,8 @@ models:
           - not_null
           - unique
       - name: location_name
+        description: The store's name.
       - name: tax_rate
-        description: Sales tax rate applied at this location.
+        description: Sales tax rate applied at this location, as a decimal fraction.
       - name: opened_date
         description: The day the location opened.

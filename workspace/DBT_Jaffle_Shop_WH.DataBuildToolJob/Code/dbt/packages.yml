@@ -1,3 +1,38 @@
+# Packages: other people's dbt projects, installed into this one.
+#
+# A dbt package is just a dbt project - macros, and sometimes models - published for reuse. Adding
+# one here and running
+#
+#     dbt deps
+#
+# clones it into dbt_packages/ (git-ignored, like node_modules or a Python virtual environment), and
+# its macros and tests become available as `dbt_utils.<name>`.
+#
+# dbt_utils is the one package almost every project ends up with. This project uses two things from
+# it, and both are worth knowing about:
+#
+#   * `dbt_utils.expression_is_true` - the generic test for any boolean SQL expression. It is what
+#     asserts `order_total - tax_paid = subtotal` on stg_orders and the two reconciliations on
+#     orders. dbt itself ships only four generic tests (unique, not_null, accepted_values,
+#     relationships); this fills the largest gap in that list.
+#
+#   * `dbt_utils.generate_surrogate_key` - hashes several columns into one key, used by
+#     stg_supplies, where the source has no single unique column.
+#
+# Pin an exact version. `dbt deps` writes the resolved versions to package-lock.yml, which *is*
+# committed, so every laptop, the CI pipeline and the Fabric jobs all install byte-identical
+# packages. Upgrading is deliberate: change the version here, run `dbt deps`, commit the new lock.
+#
+# Two Fabric-specific notes:
+#
+#   * Packages can be installed from the dbt Hub (as here), from a Git URL, or from a local path -
+#     the last of which is how a large organisation shares a private package of house macros.
+#   * The Fabric dbt job runtime does not run `dbt deps`, so tools/sync_fabric_dbt_jobs.py vendors
+#     dbt_packages/ into the job items. That is why dbt_utils resolves when the job runs there.
+#
+# You can override any macro from a package by defining one with the same name in this project -
+# macros/tsql_overrides.sql does exactly that to dbt_utils.expression_is_true. See macros/README.md.
+
 packages:
   - package: dbt-labs/dbt_utils
     version: 1.4.1

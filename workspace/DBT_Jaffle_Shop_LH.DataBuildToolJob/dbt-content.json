@@ -5,7 +5,7 @@
   },
   "profile": {
     "profileType": "Lakehouse",
-    "schema": "jaffle_shop",
+    "schema": "jaffle_shop_job",
     "connectionSettings": {
       "name": "LH_Jaffle_Shop",
       "properties": {

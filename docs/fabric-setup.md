@@ -118,9 +118,33 @@ ships in and it ran here before.
 
    | Job | Adapter | Connection | Schema | Notes |
    | --- | --- | --- | --- | --- |
-   | `DBT_Jaffle_Shop_WH` | Fabric Data Warehouse | `WH_Jaffle_Shop` | `jaffle_shop` | seed data **off** |
-   | `DBT_Jaffle_Shop_LH` | Fabric Lakehouse | `LH_Jaffle_Shop` | `jaffle_shop` | seed data **off** |
-   | `DBT_Jaffle_Shop_DB` | Azure SQL Database | server + database of `DB_Jaffle_Shop`, service principal from step 3 | `jaffle_shop` | evaluation path, not certified |
+   | `DBT_Jaffle_Shop_WH` | Fabric Data Warehouse | `WH_Jaffle_Shop` | `jaffle_shop_job` | seed data **off** |
+   | `DBT_Jaffle_Shop_LH` | Fabric Lakehouse | `LH_Jaffle_Shop` | `jaffle_shop_job` | seed data **off** |
+   | `DBT_Jaffle_Shop_DB` | Azure SQL Database | server + database of `DB_Jaffle_Shop`, service principal from step 3 | `jaffle_shop_job` | evaluation path, not certified |
+
+   **The jobs build into `jaffle_shop_job`, not `jaffle_shop`, and that separation matters.** Both the jobs
+   and the laptop build the same project into the same engines, so sharing one schema means whichever ran
+   last owns the objects - and the job runtime's adapters are older than the laptop's (see step 6). On the
+   Lakehouse that is not merely untidy but breaks the laptop demo: `dbt-fabricspark` 1.12.2 writes the
+   `stg_*` view definitions with a four-part source name whose first part is the literal placeholder
+   `<no-lakehouse-workspace-specified>`, because the profile Fabric generates carries no workspace name.
+   The views build, but any later `select` through them fails with
+
+   ```
+   [TABLE_OR_VIEW_NOT_FOUND] The table or view
+   `<no-lakehouse-workspace-specified>`.`LH_Jaffle_Shop`.`raw`.`raw_customers` cannot be found
+   ```
+
+   which is what Demo 4 hit on 2026-09-10 after the job had run: `dbt build --select customers` builds only
+   the mart, so it reads the poisoned view rather than regenerating it. Separate schemas keep the two hosts
+   out of each other's way; if they ever do collide again, the repair is a full
+   `dbt build --target lakehouse` from the laptop, which rewrites every view definition.
+
+   The schema lives in each item's `dbt-content.json` (`profile.schema`), which `tools/sync_fabric_dbt_jobs.py`
+   deliberately leaves alone - it only rewrites `project`. Change it in the repo and push, then Workspace ->
+   Source control -> **Update**; if Fabric declines to change an existing item's profile that way, set the
+   schema in the job editor instead. The first run into the new schema rebuilds everything (~7.5 min on the
+   Lakehouse), so do it before the talk, not during it.
 
 3. Command **build**, threads 4. Save. Workspace -> Source control -> **Commit**, so the item definition
    (`workspace/DBT_Jaffle_Shop_WH.DataBuildToolJob/dbt-content.json` + `.platform`) lands in this

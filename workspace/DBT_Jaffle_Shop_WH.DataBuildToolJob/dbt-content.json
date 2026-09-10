@@ -5,7 +5,7 @@
   },
   "profile": {
     "profileType": "DataWarehouse",
-    "schema": "jaffle_shop",
+    "schema": "jaffle_shop_job",
     "connectionSettings": {
       "name": "WH_Jaffle_Shop",
       "properties": {

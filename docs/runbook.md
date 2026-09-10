@@ -170,6 +170,14 @@ Same numbers as Demo 1 (confirmed 2026-09-09: 6 / 113.48, 929 / 671,311.89; 61,9
 Recovery: if the Livy session takes more than 20 seconds to start, play the recording and keep talking about the
 compiled SQL diff. `reuse_session: true` keeps the session between commands, so the warm-up run before the talk matters.
 
+If the build fails with `[TABLE_OR_VIEW_NOT_FOUND] ... <no-lakehouse-workspace-specified> ... raw_customers`, the
+`stg_*` views in the Lakehouse were last written by the **Fabric dbt job**, whose older `dbt-fabricspark` (1.12.2)
+bakes a four-part source name with that placeholder into the view definition. `--select customers` only builds the
+mart, so it reads the poisoned view instead of replacing it. Fix: a full `dbt build --target lakehouse` from the
+laptop, which rewrites every view. The jobs now build into `jaffle_shop_job` to stop this recurring - see
+`fabric-setup.md` §5. This is also why step 3 of *Before the talk* is a full build on every target, and why the
+Lakehouse dbt job should not be run after it.
+
 ## Demo 5 (optional) · Fabric SQL database (from the discussion slot)
 
 ```powershell

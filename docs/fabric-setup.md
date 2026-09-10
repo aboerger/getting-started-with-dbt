@@ -110,6 +110,10 @@ hand). Nothing is edited on that branch. Repeat the steps below for the three ta
    Packages: the job editor warns that package dependencies are not yet supported, which is why the
    snapshot branch carries `dbt_packages/` already resolved (no `dbt deps` at run time). The two runner
    notebooks are unaffected: their bundles vendor `dbt_packages/` the same way.
+   File size: the job fetches the project file by file through GitHub's contents API, which returns no
+   content for files over 1 MB; a branch that carries the 7-9 MB seed CSVs fails with
+   `errorCode 20407: Failed to download dbt project from GitHub repository`. The snapshot therefore leaves
+   out every file above 1 MB and lists them in its README (seeds are disabled in the jobs anyway).
 4. Adapter and connection:
 
    | Job | Adapter | Connection | Schema | Notes |

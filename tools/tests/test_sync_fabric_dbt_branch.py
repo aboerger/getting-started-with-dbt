@@ -85,6 +85,23 @@ def test_snapshot_vendors_ignored_dbt_packages_and_drops_dbt_byproducts(repo: Pa
     assert not {f for f in files if f.startswith(("logs/", "target/")) or f == ".user.yml"}
 
 
+def test_snapshot_leaves_out_files_over_the_github_contents_limit(repo: Path):
+    seeds = repo / "jaffle_shop" / "seeds"
+    seeds.mkdir()
+    (seeds / "raw_orders.csv").write_text("id\n" + "x\n" * 600_000, encoding="utf-8")  # ~1.2 MB
+    (seeds / "raw_customers.csv").write_text("id\n1\n", encoding="utf-8")
+    _git(repo, "add", "-A", "jaffle_shop/seeds")
+    _git(repo, "commit", "-q", "-m", "feat: seeds")
+
+    sync.build_snapshot(repo, branch="snap", run_deps=False)
+
+    files = set(_git(repo, "ls-tree", "-r", "--name-only", "snap").splitlines())
+    assert "seeds/raw_customers.csv" in files
+    assert "seeds/raw_orders.csv" not in files
+    readme = _git(repo, "show", "snap:README.md")
+    assert "seeds/raw_orders.csv" in readme and "1 MB" in readme
+
+
 def test_snapshot_refuses_a_ref_without_the_project(repo: Path):
     with pytest.raises(SystemExit, match="dbt_project.yml"):
         sync.build_snapshot(repo, prefix="tools", branch="snap", run_deps=False)

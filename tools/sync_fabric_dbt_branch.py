@@ -12,6 +12,8 @@ and ``tools/`` - and this script derives a branch from it:
     ├── models/ macros/ ...
     ├── dbt_packages/          <- `dbt deps` output vendored (the job runtime
     │                             does not run dbt deps; packages.yml alone fails)
+    ├── seeds/                 <- minus files over 1 MB (GitHub contents API limit;
+    │                             the job downloads file by file and fails on them)
     └── README.md              <- "generated from <commit>, do not edit"
 
 Each run appends one commit on top of the previous snapshot (fast-forward
@@ -113,15 +115,40 @@ def scrub_dbt_byproducts(project_dir: Path) -> None:
         (project_dir / name).unlink(missing_ok=True)
 
 
-def write_readme(dest: Path, source_commit: str, source_subject: str, branch: str) -> None:
-    (dest / README_NAME).write_text(
+# GitHub's contents API returns no content for files above 1 MB (`encoding: none`),
+# and the Fabric dbt job downloads the project file by file through it: a branch
+# with the 7-9 MB seed CSVs fails with `20407: Failed to download dbt project`.
+# Seeds are disabled in the Fabric jobs anyway (the raw tables are loaded once,
+# separately), so anything over the limit stays out of the snapshot.
+MAX_FILE_BYTES = 1_000_000
+
+
+def drop_oversized_files(dest: Path, limit: int = MAX_FILE_BYTES) -> list[str]:
+    """Delete files larger than ``limit`` under ``dest``; return their relative paths."""
+    dropped: list[str] = []
+    for path in sorted(dest.rglob("*")):
+        if path.is_file() and path.stat().st_size > limit:
+            dropped.append(path.relative_to(dest).as_posix())
+            path.unlink()
+    return dropped
+
+
+def write_readme(dest: Path, source_commit: str, source_subject: str, branch: str, dropped: list[str] = ()) -> None:
+    text = (
         f"# {branch}: generated branch, do not edit\n\n"
         f"Root-level snapshot of `{PROJECT_PREFIX}/` at commit `{source_commit}` ({source_subject}), "
         f"with `dbt_packages/` vendored, produced by `tools/sync_fabric_dbt_branch.py` for {CONSUMERS}. "
         "Those jobs read `dbt_project.yml` from the root of the branch they are connected to.\n\n"
-        "Change the project on `main` (folder `jaffle_shop/`); the sync workflow republishes this branch.\n",
-        encoding="utf-8",
+        "Change the project on `main` (folder `jaffle_shop/`); the sync workflow republishes this branch.\n"
     )
+    if dropped:
+        text += (
+            f"\n## Not included (larger than {MAX_FILE_BYTES:,} bytes)\n\n"
+            "The Fabric dbt job fetches files through GitHub's contents API, which returns no content above "
+            "1 MB. These files exist on `main` and are not needed by the jobs (seeds are disabled there):\n\n"
+            + "".join(f"- `{path}`\n" for path in dropped)
+        )
+    (dest / README_NAME).write_text(text, encoding="utf-8")
 
 
 def commit_snapshot(repo: Path, snapshot_dir: Path, branch: str, message: str) -> str | None:
@@ -170,7 +197,10 @@ def build_snapshot(
         if run_deps:
             vendor_dbt_packages(snapshot, log_dir=Path(tmp) / "dbt-logs")
         scrub_dbt_byproducts(snapshot)
-        write_readme(snapshot, source_commit, source_subject, branch)
+        dropped = drop_oversized_files(snapshot)
+        for path in dropped:
+            print(f"  not included (> {MAX_FILE_BYTES:,} bytes, GitHub contents API limit): {path}")
+        write_readme(snapshot, source_commit, source_subject, branch, dropped)
         message = f"Snapshot of {prefix}/ at {source_commit[:12]}: {source_subject}"
         return commit_snapshot(repo, snapshot, branch, message), source_commit
 

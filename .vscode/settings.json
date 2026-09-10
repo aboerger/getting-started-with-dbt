@@ -5,8 +5,7 @@
         ".claude/skills": true,
         "~/.agents/skills": true,
         "~/.copilot/skills": true,
-        "~/.claude/skills": true,
-        "~/.vscode/extensions/synapsevscode.synapse-1.25.1/copilot/skills": true
+        "~/.claude/skills": true
     },
     // dbt models are Jinja templates, not T-SQL. Opening them as "SQL" makes the mssql extension's
     // parser flag every {{ ref(...) }} and every {# comment #} as a syntax error, which is both

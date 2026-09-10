@@ -11,7 +11,7 @@ engines from four different hosts.
 | profile target          | `warehouse`      | `lakehouse`      | `sqldb`             |
 | laptop                  | Demo 1-3         | Demo 4           | Demo 5              |
 | Azure DevOps pipeline   | `--target ci`    |                  |                     |
-| Fabric dbt job          | `DBT_Jaffle_Shop_WH` | `DBT_Jaffle_Shop_LH` | `DBT_Jaffle_Shop_DB` |
+| Fabric dbt job (branch `fabric-dbt-job`) | `DBT_Jaffle_Shop_WH` | `DBT_Jaffle_Shop_LH` | `DBT_Jaffle_Shop_DB` |
 | Fabric Python notebook  | `NB_dbt_Runner` with `target = "warehouse"` (code from a published OneLake bundle) | `"lakehouse"` (Livy) | `"sqldb"` |
 | Fabric Spark notebook   |                  | `NB_dbt_Runner_Spark` (`method: session`, target `lakehouse_session`, code from a published OneLake bundle) | |
 
@@ -24,6 +24,7 @@ engines from four different hosts.
 | `tools/` | `setup-env.ps1` (venvs), `env.example.ps1` (variables), `scenario.ps1` (Demo 2 break/reset); `publish_dbt_bundle.py` and its modules publish the OneLake bundles the two runner notebooks run (see below) |
 | `runner/` | `jaffle-dbt-runner`: the in-notebook runner package the bundles carry; unit-tested, never committed as a wheel |
 | `azure-pipelines.yml` | CI: build and test every pull request in an isolated Warehouse schema; assemble both Lakehouse bundles without uploading |
+| `.github/workflows/` | `sync-fabric-dbt-branch.yml`: republish the `fabric-dbt-job` branch (root-level snapshot of `jaffle_shop/` + `dbt_packages/`, built by `tools/sync_fabric_dbt_branch.py`) that the Fabric dbt job items are connected to |
 | `workspace/` | Fabric workspace items synced through Git integration (Warehouse, Lakehouse, SQL database, dbt jobs, two runner notebooks) |
 | `docs/runbook.md` | the demo script: commands, expected output, recovery |
 | `docs/fabric-setup.md` | one-time setup: tenant settings, service principal, Azure DevOps, dbt jobs, notebook |

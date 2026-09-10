@@ -1,0 +1,48 @@
+# Keeps the `fabric-dbt-job` branch in step with `jaffle_shop/` on main.
+#
+# The Fabric dbt job items (DBT_Jaffle_Shop_WH, DBT_Jaffle_Shop_LH) are connected to this
+# repository and read dbt_project.yml from the ROOT of the branch they point at, so they point
+# at `fabric-dbt-job`: a generated root-level snapshot of jaffle_shop/ with dbt_packages/
+# vendored (tools/sync_fabric_dbt_branch.py). Nothing else in the repo changes for it.
+name: Sync fabric-dbt-job branch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - jaffle_shop/**
+      - tools/sync_fabric_dbt_branch.py
+      - .github/workflows/sync-fabric-dbt-branch.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-fabric-dbt-branch
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # the snapshot branch's history is appended to, so fetch it too
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pinned dbt (for dbt deps)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/warehouse.txt
+          dbt --version
+
+      - name: Build and push the snapshot branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin +refs/heads/fabric-dbt-job:refs/heads/fabric-dbt-job || true
+          python tools/sync_fabric_dbt_branch.py --push

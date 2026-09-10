@@ -1,8 +1,8 @@
 {
   "project": {
     "projectType": "GitHub",
-    "branch": "main",
-    "folderPath": "jaffle_shop",
+    "branch": "fabric-dbt-job",
+    "folderPath": "dbt",
     "externalReferences": {
       "connection": "1c1a2a0a-53f9-4a82-952e-592f2f085796"
     }

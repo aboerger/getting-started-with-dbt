@@ -88,24 +88,28 @@ dbt run-operation drop_schema_if_exists --args "{schema_name: ci_local}" --targe
 
 ## 5. Fabric dbt jobs from the GitHub repository
 
-The job pulls the project from GitHub on every run, so the code exists once (in `jaffle_shop/`).
-Repeat for the three targets.
+The job pulls the project from GitHub on every run, so the code exists once (in `jaffle_shop/`). The job
+reads `dbt_project.yml` from the **root** of the branch it is connected to, and the project is not at the
+root of this repository, so the jobs point at the generated branch **`fabric-dbt-job`**: a root-level
+snapshot of `jaffle_shop/` with `dbt_packages/` vendored, rebuilt by `tools/sync_fabric_dbt_branch.py`
+(the GitHub Actions workflow `.github/workflows/sync-fabric-dbt-branch.yml` runs it on every push to `main`
+that touches the project; `python tools\sync_fabric_dbt_branch.py --push` from `.venv-tools` does it by
+hand). Nothing is edited on that branch. Repeat the steps below for the three targets.
 
 1. Create a **classic** GitHub personal access token with `repo` scope (fine-grained tokens are not
    accepted at the time of writing).
 2. Workspace -> **+ New item** -> **dbt job** -> name `DBT_Jaffle_Shop_WH` -> **Connect to a GitHub project**
    -> *GitHub - Source Control* -> repository `https://github.com/aboerger/getting-started-with-dbt`,
    connection name `github-getting-started-with-dbt`, paste the PAT.
-3. Branch `main`; dbt project path `jaffle_shop`. The dialog pre-fills the path with `dbt` (the folder a
-   non-Git dbt job keeps its files in); left like that, every run fails with
-   `errorCode 20418: The project yaml file was not found in the dbt project`, because the repo root has no
-   `dbt/dbt_project.yml`. The synced definition shows the value as `project.folderPath` in
-   `workspace/DBT_Jaffle_Shop_*.DataBuildToolJob/dbt-content.json`; editing it there and running
-   Source control -> **Update** in the workspace is the same fix as editing it in the job's settings.
-   Package support is the next thing to watch: the job editor warns that package dependencies are not yet
-   supported, and the official limitations page does not mention `dbt deps`. If a run fails on
-   `dbt_utils` after the path is fixed, that is the reason (the two runner notebooks are unaffected: their
-   bundles vendor `dbt_packages/`).
+3. Branch **`fabric-dbt-job`** (push it first with the sync script if it does not exist yet). The wizard
+   offers no project-path field: a branch whose root has no `dbt_project.yml` fails every run with
+   `errorCode 20418: The project yaml file was not found in the dbt project`. The `project.folderPath`
+   value in the synced definition (`workspace/DBT_Jaffle_Shop_*.DataBuildToolJob/dbt-content.json`) is
+   the wizard's default `dbt`; setting it to `jaffle_shop` on `main` was verified through the REST API to
+   change nothing (2026-09-10), so leave it alone.
+   Packages: the job editor warns that package dependencies are not yet supported, which is why the
+   snapshot branch carries `dbt_packages/` already resolved (no `dbt deps` at run time). The two runner
+   notebooks are unaffected: their bundles vendor `dbt_packages/` the same way.
 4. Adapter and connection:
 
    | Job | Adapter | Connection | Schema | Notes |

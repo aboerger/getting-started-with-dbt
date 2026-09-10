@@ -96,7 +96,16 @@ Repeat for the three targets.
 2. Workspace -> **+ New item** -> **dbt job** -> name `DBT_Jaffle_Shop_WH` -> **Connect to a GitHub project**
    -> *GitHub - Source Control* -> repository `https://github.com/aboerger/getting-started-with-dbt`,
    connection name `github-getting-started-with-dbt`, paste the PAT.
-3. Branch `main`; dbt project path `jaffle_shop`.
+3. Branch `main`; dbt project path `jaffle_shop`. The dialog pre-fills the path with `dbt` (the folder a
+   non-Git dbt job keeps its files in); left like that, every run fails with
+   `errorCode 20418: The project yaml file was not found in the dbt project`, because the repo root has no
+   `dbt/dbt_project.yml`. The synced definition shows the value as `project.folderPath` in
+   `workspace/DBT_Jaffle_Shop_*.DataBuildToolJob/dbt-content.json`; editing it there and running
+   Source control -> **Update** in the workspace is the same fix as editing it in the job's settings.
+   Package support is the next thing to watch: the job editor warns that package dependencies are not yet
+   supported, and the official limitations page does not mention `dbt deps`. If a run fails on
+   `dbt_utils` after the path is fixed, that is the reason (the two runner notebooks are unaffected: their
+   bundles vendor `dbt_packages/`).
 4. Adapter and connection:
 
    | Job | Adapter | Connection | Schema | Notes |

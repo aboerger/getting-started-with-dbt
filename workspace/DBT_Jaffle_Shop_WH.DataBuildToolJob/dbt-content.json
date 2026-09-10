@@ -2,7 +2,7 @@
   "project": {
     "projectType": "GitHub",
     "branch": "main",
-    "folderPath": "dbt",
+    "folderPath": "jaffle_shop",
     "externalReferences": {
       "connection": "1c1a2a0a-53f9-4a82-952e-592f2f085796"
     }
